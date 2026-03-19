@@ -22,6 +22,10 @@
 - [ ] Aprovação para produção
 - [ ] Deploy produção
 
+### GitHub Pages (só se estiver em uso)
+- [ ] Tratar como **pré-visualização temporária** para cliente ver o front (não é produção oficial).
+- [ ] Quando houver staging/produção definitivos (Vercel/Netlify), **desativar Pages** ou parar de usar o workflow, se acordado.
+
 ## Pós-deploy
 - [ ] Verificar logs de erro iniciais
 - [ ] Verificar monitoramento de latência das páginas críticas

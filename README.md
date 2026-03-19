@@ -26,6 +26,24 @@ npm run test:e2e
 - **Vercel**: deploy padrão (SPA) já coberto por `vercel.json`.
 - **Netlify**: deploy padrão (SPA) já coberto por `netlify.toml`.
 
+## Deploy (GitHub Pages) — **pré-visualização temporária**
+
+> **Uso pretendido:** ambiente **temporário** só para o **cliente acompanhar o front em tempo quase real** (cada push atualiza o site). **Não é** o alvo final de produção — para isso use **Vercel / Netlify** (ou outro pipeline acordado com o time).
+
+O workflow `.github/workflows/deploy-github-pages.yml` faz o build com `VITE_BASE=/<nome-do-repo>/` (usa o nome do repositório automaticamente), gera `404.html` para o SPA e publica a pasta `dist`.
+
+1. Faça push para `master` ou `main`.
+2. No GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. A URL será `https://<usuario-ou-org>.github.io/<nome-do-repo>/` (ex.: org `Igatecnologia` e repo `front-end-gest-o`).
+
+Build local com o mesmo critério (PowerShell):
+
+```powershell
+$env:VITE_BASE="/front-end-gest-o/"
+npm run build:gh-pages
+```
+(Ajuste o valor se o nome do repositório for outro.)
+
 ## Acessar local
 
 Abra `http://localhost:5173`.

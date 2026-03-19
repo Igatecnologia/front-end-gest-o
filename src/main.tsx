@@ -17,6 +17,12 @@ async function enableMocking() {
   await worker.start({ onUnhandledRequest: 'bypass' })
 }
 
+function routerBasename() {
+  const raw = import.meta.env.BASE_URL
+  if (raw === '/') return undefined
+  return raw.replace(/\/$/, '') || undefined
+}
+
 function renderApp() {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
@@ -24,7 +30,7 @@ function renderApp() {
         <AuthProvider>
           <QueryClientProvider client={queryClient}>
             <AppErrorBoundary>
-              <BrowserRouter>
+              <BrowserRouter basename={routerBasename()}>
                 <App />
               </BrowserRouter>
             </AppErrorBoundary>
