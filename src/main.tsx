@@ -10,11 +10,25 @@ import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './query/queryClient'
 import { USE_MOCKS } from './api/apiEnv'
+import { publicAssetUrl } from './utils/publicAssetUrl'
+
+/** Fundo da tela de login (CSS não resolve import.meta.env.BASE_URL sozinho). */
+document.documentElement.style.setProperty(
+  '--login-bg-image',
+  `url("${publicAssetUrl('logo.png.png')}")`,
+)
 
 async function enableMocking() {
   if (!USE_MOCKS) return
   const { worker } = await import('./mocks/server/browser')
-  await worker.start({ onUnhandledRequest: 'bypass' })
+  const base = import.meta.env.BASE_URL
+  await worker.start({
+    onUnhandledRequest: 'bypass',
+    serviceWorker: {
+      url: `${base}mockServiceWorker.js`,
+      options: { scope: base },
+    },
+  })
 }
 
 function routerBasename() {

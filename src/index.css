@@ -299,7 +299,8 @@ a {
   content: '';
   position: absolute;
   inset: -120px -120px -120px -120px;
-  background-image: url('/logo.png.png');
+  /* Definido em main.tsx: --login-bg-image (respeita BASE_URL / GitHub Pages) */
+  background-image: var(--login-bg-image);
   background-repeat: no-repeat;
   background-size: 540px auto;
   background-position: calc(100% + 60px) 60px;

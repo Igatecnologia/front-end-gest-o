@@ -28,6 +28,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { hasPermission } from '../auth/permissions'
 import { useAppTheme } from '../theme/ThemeContext'
+import { publicAssetUrl } from '../utils/publicAssetUrl'
 
 const { Header, Sider, Content } = Layout
 
@@ -175,7 +176,7 @@ export function AppLayout() {
           <div className="app-sider-brand">
             <Space size={10} align="center">
               <img
-                src="/logo.png.png"
+                src={publicAssetUrl('logo.png.png')}
                 alt="IGA"
                 className="app-sider-logo"
               />

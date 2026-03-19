@@ -44,6 +44,8 @@ npm run build:gh-pages
 ```
 (Ajuste o valor se o nome do repositório for outro.)
 
+**Se logo / fundo do login ou dados (mock) não aparecem no Pages:** o app fica em subpasta (`/<repo>/`). Use `publicAssetUrl()` para arquivos em `public/` e o MSW já registra o `mockServiceWorker.js` com `BASE_URL` + `scope` corretos.
+
 ## Acessar local
 
 Abra `http://localhost:5173`.

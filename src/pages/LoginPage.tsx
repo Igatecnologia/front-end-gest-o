@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { useAuth } from '../auth/AuthContext'
+import { publicAssetUrl } from '../utils/publicAssetUrl'
 
 type LoginForm = {
   email: string
@@ -44,7 +45,7 @@ export function LoginPage() {
           subtitle="IGA Gestão e Análise de Dados — use as credenciais de demo abaixo."
           extra={
             <img
-              src="/logo.png.png"
+              src={publicAssetUrl('logo.png.png')}
               alt="IGA"
               className="login-header-logo"
             />
