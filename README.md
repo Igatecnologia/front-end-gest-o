@@ -82,44 +82,45 @@ Checklist detalhado: `SPRINTS_CHECKLIST.md`
 Arquitetura: `ARCHITECTURE.md`
 Deploy: `DEPLOY_CHECKLIST.md`
 
-## Sprint 1 — Fundação
-- Setup do projeto (Vite + React + TS)
-- Ant Design + Router
-- Estrutura base de pastas
-- Rotas iniciais + layout (Sidebar/Header/Content)
+### Sprint 1 — Fundação (concluída)
+- Base Vite + React + TypeScript (strict), Ant Design e React Router
+- Layout responsivo (Sidebar/Header/Content), rotas iniciais e 404
+- ESLint + Prettier + organização de imports/aliases
 
-## Sprint 2 — Camada de dados (mocks/services)
-- `mocks/` + `services/` com delay e simulação de erro
-- Padrão de estados: **loading / success / empty / error**
-- Axios preparado com `VITE_API_BASE_URL`
+### Sprint 2 — Dados e resiliência (concluída)
+- Axios com interceptors e tratamento global de erros HTTP
+- TanStack Query + query keys padronizadas
+- Contratos com Zod e MSW para mock realista
 
-## Sprint 3 — Dashboard (UI + dados)
-- KPIs (cards) + gráficos (linha/barras) + tabela
-- Filtros básicos e busca
-- Componentização inicial (ex: `PageHeaderCard`)
+### Sprint 3 — Dashboard BI (concluída)
+- KPIs com comparação de período e variação
+- Biblioteca de gráficos e interações (drill-down, cross-filter, tooltip rico)
+- Tabelas com paginação/filtros/ordenação e virtualização
 
-## Sprint 4 — UX/Responsivo/Erros
-- Loading com `Skeleton` e feedback de erro com `Alert` + `notification`
-- Tema **dark/light** com persistência
-- Mobile: navegação lateral em **Drawer**
-- Error Boundary global (evita “tela branca”)
+### Sprint 4 — UX e performance (concluída)
+- Skeleton/empty/error states e Error Boundary global
+- Tema dark/light com persistência
+- Responsividade mobile (Drawer) e revisão de acessibilidade
 
-## Sprint 5 — Relatórios e Governança (nível empresa)
-- Tipos de relatório: Performance, Conversão, Retenção, Tendência (YoY/MoM), Top N, Sazonalidade e Segmentação
-- Exportação: CSV, Excel, PDF executivo e gráfico em PNG/SVG
-- Agendamento de relatórios (simulado)
-- Filtros avançados: intervalo de datas, lógica AND/OR e filtros salvos por usuário
-- Compliance: audit trail com diff (de/para), masking de PII e registro de acesso sensível (simulado)
+### Sprint 5 — Relatórios e governança (concluída)
+- Relatórios operacionais e analíticos (financeiro, conversão, retenção etc.)
+- Exportações CSV/Excel/PDF/PNG/SVG + agendamento (simulado)
+- Compliance: RBAC, trilha de auditoria com diff, masking de PII
 
-## Backlog prioritário
+### Sprint 6 — BI avançado + integração (concluída)
+- Paginação/filtros/ordenação server-side
+- Debounce, cache e invalidação de mutations
+- Indicadores em tempo real (polling) + insights e anomalias
 
-- **Saved views** (salvar filtros/colunas por página) + “Compartilhar link”
-- **Auditoria/Logs** (tabela + filtros + export)
-- **Drill-down avançado** (cross-filter entre widgets do dashboard)
-- **Componentes reutilizáveis** (Design System interno)
-- **Estado avançado** (Context API ou Zustand) quando houver mais telas
-- **React Query** quando houver API real (cache/performance)
-- **Testes** (smoke e2e com Playwright + unit dos services/utils)
+### Sprint 7 — Qualidade de produto (concluída)
+- Testes E2E (Playwright) para login, RBAC e CRUD
+- Testes unitários em services/utils
+- Hardening de deploy (CSP/headers/checklist)
+
+### Sprint 8 — Fluxo ERP + BI operacional (referência)
+- Roadmap de evolução funcional do front para fluxo ponta a ponta
+- Abrange produção, estoque, comercial, faturamento e financeiro
+- Inclui cálculo de custo real, margem, alertas e cronograma de 10 dias (dev único)
 
 ## Login (demo)
 
