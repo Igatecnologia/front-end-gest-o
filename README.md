@@ -1,129 +1,183 @@
-# IGA Gestão e Análise de Dados
+# IGA — Gestão e Análise de Dados
 
-Frontend administrativo e BI **moderno e organizado**, usando **React + Vite + TypeScript** e **Ant Design**.
+Aplicação web **administrativa e de Business Intelligence** para visão executiva de indicadores, vendas, financeiro e relatórios. Construída em **React**, com interface **Ant Design**, gráficos **Recharts** e camada de dados tipada (**TypeScript** + **Zod**).
+
+---
+
+## Capacidades
+
+- **Dashboard** com KPIs, gráficos temporais e tabela de lançamentos recentes.
+- **Análises BI** com visualizações avançadas e textos explicativos por bloco.
+- **Vendas analítico** com listagem da API, filtros, totais e **detalhe por linha**.
+- **Financeiro** e **relatórios** (modo integrado: agregações a partir da mesma base analítica, quando configurado).
+- **Autenticação**, **perfis com permissões** (RBAC no front), **tema claro/escuro** e layout responsivo (sidebar + drawer em mobile).
+- **Exportação** (CSV, XLSX, PDF, imagens) na área de relatórios; agendamentos **simulados** (armazenamento local).
+
+---
 
 ## Stack
 
-- **UI**: Ant Design (`antd`) + `@ant-design/icons`
-- **Rotas**: React Router
-- **HTTP (futuro)**: Axios (por enquanto a camada está mockada)
-- **Gráficos**: Recharts
-- **Datas**: Day.js
+| Camada | Tecnologia |
+|--------|------------|
+| Runtime | React 19, Vite 8, TypeScript |
+| UI | Ant Design 6, ícones Ant Design |
+| Rotas | React Router 7 |
+| Dados assíncronos | TanStack Query 5 |
+| HTTP | Axios (clientes com JWT onde aplicável) |
+| Validação de contratos | Zod 4 |
+| Gráficos | Recharts 3 |
+| Datas | Day.js (incl. fuso `America/Sao_Paulo` onde aplicável) |
+| Testes | Vitest, Playwright |
+| Mock opcional | MSW 2 |
 
-## Scripts
+---
+
+## Pré-requisitos
+
+- **Node.js** 20+ (recomendado LTS)
+- **npm** 10+
+
+---
+
+## Instalação e execução local
 
 ```bash
+git clone https://github.com/Igatecnologia/front-end-gest-o.git
+cd front-end-gest-o
 npm install
+cp .env.example .env
+# Edite .env conforme o ambiente (ver secção seguinte)
 npm run dev
-npm run build
-npm run preview
-npm run test:unit
-npm run test:e2e
 ```
 
-## Deploy (Vercel / Netlify)
+Abra **http://localhost:5173**.
 
-- **Vercel**: deploy padrão (SPA) já coberto por `vercel.json`.
-- **Netlify**: deploy padrão (SPA) já coberto por `netlify.toml`.
+---
 
-## Deploy (GitHub Pages) — **pré-visualização temporária**
+## Variáveis de ambiente
 
-> **Uso pretendido:** ambiente **temporário** só para o **cliente acompanhar o front em tempo quase real** (cada push atualiza o site). **Não é** o alvo final de produção — para isso use **Vercel / Netlify** (ou outro pipeline acordado com o time).
+Copie **`.env.example`** para **`.env`**. O ficheiro **`.env`** não deve ser versionado (já está no `.gitignore`).
 
-O workflow `.github/workflows/deploy-github-pages.yml` faz o build com `VITE_BASE=/<nome-do-repo>/` (usa o nome do repositório automaticamente), gera `404.html` para o SPA e publica a pasta `dist`.
+| Variável | Descrição |
+|----------|-----------|
+| `VITE_API_BASE_URL` | URL da API REST genérica (dashboard, usuários, etc.) quando **não** se usa só o fluxo SGBR. |
+| `VITE_USE_MOCKS` | `true` ativa **MSW** no browser (útil para e2e/testes). Padrão: `false`. |
+| `VITE_SGBR_BI_BASE_URL` | Base do SGBR BI. Em desenvolvimento use **`proxy`** para o Vite encaminhar `/sgbrbi` e evitar CORS. Em produção use URL absoluta com CORS permitido. |
+| `VITE_SGBR_BI_PROXY_TARGET` | Alvo do proxy (só dev), ex.: `http://servidor:porta`. |
+| `VITE_AUTH_BACKEND` | `mock` força login demo; `sgbrbi` usa `POST /sgbrbi/usuario/login` quando SGBR está ativo. |
+| `VITE_APP_STAGE` | Opcional: `homolog` exibe badge no cabeçalho. |
+| `VITE_BASE` | Base path do build (ex.: subpasta em GitHub Pages). |
 
-1. Faça push para `master` ou `main`.
-2. No GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. A URL será `https://<usuario-ou-org>.github.io/<nome-do-repo>/` (ex.: org `Igatecnologia` e repo `front-end-gest-o`).
+Detalhes adicionais estão comentados em **`.env.example`**.
 
-Build local com o mesmo critério (PowerShell):
+---
+
+## Integração SGBR BI
+
+Com **`VITE_SGBR_BI_BASE_URL`** definido (URL ou `proxy` em dev):
+
+- **Login**: `POST /sgbrbi/usuario/login` (senha enviada como SHA-256, conforme API).
+- **Dados analíticos**: `GET /sgbrbi/vendas/analitico` com `dt_de` / `dt_ate` e **Bearer token**.
+
+**Dashboard**, **financeiro** e **relatórios** passam a ser **calculados no cliente** a partir das linhas devolvidas por `vendas/analitico` (não são endpoints separados). A página **Vendas analítico** apresenta a resposta próxima do bruto da API.
+
+**Usuários** e **auditoria** não são expostos por esta API no projeto atual; o menu de administração é ocultado nesse modo.
+
+---
+
+## Scripts NPM
+
+| Comando | Uso |
+|---------|-----|
+| `npm run dev` | Servidor de desenvolvimento Vite. |
+| `npm run build` | Type-check + build de produção. |
+| `npm run preview` | Servir a pasta `dist` localmente. |
+| `npm run build:e2e` | Build no modo e2e. |
+| `npm run build:gh-pages` | Build com fallback SPA para GitHub Pages (defina `VITE_BASE` se necessário). |
+| `npm run lint` | ESLint. |
+| `npm run format` | Prettier. |
+| `npm run test:unit` | Vitest (CI). |
+| `npm run test:e2e` | Playwright. |
+| `npm run test:all` | Unitários + e2e. |
+
+---
+
+## Rotas principais
+
+| Rota | Descrição |
+|------|-----------|
+| `/login` | Entrada (demo ou SGBR). |
+| `/dashboard` | Visão geral. |
+| `/dashboard/analises` | BI e gráficos. |
+| `/dashboard/dados` | Tabela de dados detalhados. |
+| `/dashboard/vendas-analitico` | Listagem analítica + detalhe. |
+| `/financeiro` | Visão financeira (derivada conforme backend). |
+| `/relatorios` | Relatórios, filtros e exportações. |
+| `/usuarios` | CRUD (modo API genérica / mock). |
+| `/auditoria` | Logs (modo API genérica / mock). |
+
+---
+
+## Estrutura do repositório (`src`)
+
+- **`api/`** — variáveis de ambiente, Axios autenticado, erros HTTP, schemas Zod.
+- **`auth/`** — contexto de sessão, armazenamento, permissões.
+- **`layouts/`** — shell da aplicação (sidebar, header, conteúdo).
+- **`routes/`** — definição de rotas e proteção por autenticação/permissão.
+- **`pages/`** — ecrãs por rota.
+- **`services/`** — chamadas HTTP e regras de obtenção de dados.
+- **`query/`** — cliente React Query e chaves de cache.
+- **`components/`** — componentes reutilizáveis.
+- **`utils/`** — agregações SGBR, datas, helpers.
+- **`mocks/`** — MSW e dados de demonstração (quando aplicável).
+
+Documentação operacional para agentes e contribuidores: **`AGENTS.md`**.
+
+---
+
+## Testes e qualidade
+
+- **Unitários**: serviços e utilitários críticos (`npm run test:unit`).
+- **E2E**: fluxos de autenticação, RBAC e relatórios (`npm run test:e2e`); configure ambiente conforme `playwright.config.ts` e `.env` de teste quando existir.
+
+---
+
+## Deploy
+
+- **Vercel / Netlify**: SPA padrão; ajuste variáveis de ambiente no painel (sem commitar segredos).
+- **GitHub Pages**: workflow em `.github/workflows/`; configure **Pages → GitHub Actions**. Em subpasta, defina **`VITE_BASE`** coerente com o nome do repositório. Build local (PowerShell):
 
 ```powershell
 $env:VITE_BASE="/front-end-gest-o/"
 npm run build:gh-pages
 ```
-(Ajuste o valor se o nome do repositório for outro.)
 
-**Se logo / fundo do login ou dados (mock) não aparecem no Pages:** o app fica em subpasta (`/<repo>/`). Use `publicAssetUrl()` para arquivos em `public/` e o MSW já registra o `mockServiceWorker.js` com `BASE_URL` + `scope` corretos.
+Consulte também **`DEPLOY_CHECKLIST.md`**.
 
-## Acessar local
+---
 
-Abra `http://localhost:5173`.
+## Credenciais demo (modo mock)
 
-## Variáveis de ambiente
+Quando **`VITE_AUTH_BACKEND=mock`** (ou SGBR desativado com backend mock):
 
-Quando houver API, copie `.env.example` para `.env` e ajuste:
+| Perfil | E-mail | Senha |
+|--------|--------|------|
+| Admin | `admin@admin.com` | `admin` |
+| Manager | `manager@admin.com` | `admin` |
+| Viewer | `viewer@admin.com` | `admin` |
 
-- `VITE_API_BASE_URL`
-- `VITE_USE_MOCKS` (true/false)
+Com **SGBR ativo**, use utilizador e senha fornecidos pelo ambiente integrado.
 
-## Rotas principais
+---
 
-- `/dashboard`
-- `/dashboard/analises`
-- `/dashboard/dados`
-- `/financeiro`
-- `/relatorios`
-- `/usuarios` (CRUD local)
-- `/auditoria` (logs)
-- `*` (404)
+## Documentação complementar
 
-## Estrutura (src)
+- **`ARCHITECTURE.md`** — visão de arquitetura.
+- **`SPRINTS_CHECKLIST.md`** — histórico e itens de sprint.
+- **`DEPLOY_CHECKLIST.md`** — verificação antes de publicar.
 
-- **`layouts/`**: layout principal (Sidebar/Header/Content)
-- **`routes/`**: rotas do app
-- **`pages/`**: Dashboard (visão geral + BI + dados), Financeiro, Relatórios, Usuários, Auditoria
-- **`services/`**: camada de serviços (mock por enquanto)
-- **`mocks/`**: dados mockados para UI
+---
 
-## Sprints do projeto
+## Licença e privacidade
 
-Checklist detalhado: `SPRINTS_CHECKLIST.md`
-Arquitetura: `ARCHITECTURE.md`
-Deploy: `DEPLOY_CHECKLIST.md`
-
-### Sprint 1 — Fundação (concluída)
-- Base Vite + React + TypeScript (strict), Ant Design e React Router
-- Layout responsivo (Sidebar/Header/Content), rotas iniciais e 404
-- ESLint + Prettier + organização de imports/aliases
-
-### Sprint 2 — Dados e resiliência (concluída)
-- Axios com interceptors e tratamento global de erros HTTP
-- TanStack Query + query keys padronizadas
-- Contratos com Zod e MSW para mock realista
-
-### Sprint 3 — Dashboard BI (concluída)
-- KPIs com comparação de período e variação
-- Biblioteca de gráficos e interações (drill-down, cross-filter, tooltip rico)
-- Tabelas com paginação/filtros/ordenação e virtualização
-
-### Sprint 4 — UX e performance (concluída)
-- Skeleton/empty/error states e Error Boundary global
-- Tema dark/light com persistência
-- Responsividade mobile (Drawer) e revisão de acessibilidade
-
-### Sprint 5 — Relatórios e governança (concluída)
-- Relatórios operacionais e analíticos (financeiro, conversão, retenção etc.)
-- Exportações CSV/Excel/PDF/PNG/SVG + agendamento (simulado)
-- Compliance: RBAC, trilha de auditoria com diff, masking de PII
-
-### Sprint 6 — BI avançado + integração (concluída)
-- Paginação/filtros/ordenação server-side
-- Debounce, cache e invalidação de mutations
-- Indicadores em tempo real (polling) + insights e anomalias
-
-### Sprint 7 — Qualidade de produto (concluída)
-- Testes E2E (Playwright) para login, RBAC e CRUD
-- Testes unitários em services/utils
-- Hardening de deploy (CSP/headers/checklist)
-
-### Sprint 8 — Fluxo ERP + BI operacional (referência)
-- Roadmap de evolução funcional do front para fluxo ponta a ponta
-- Abrange produção, estoque, comercial, faturamento e financeiro
-- Inclui cálculo de custo real, margem, alertas e cronograma de 10 dias (dev único)
-
-## Login (demo)
-
-- **Admin**: `admin@admin.com` / `admin`
-- **Manager**: `manager@admin.com` / `admin`
-- **Viewer**: `viewer@admin.com` / `admin`
+Projeto **privado** (repositório da organização). Não exponha URLs internas, tokens ou `.env` em issues ou commits.
