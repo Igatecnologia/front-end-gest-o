@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { sanitizeAppRedirectPath } from '../utils/sanitizeAppRedirectPath'
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -7,7 +8,11 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return (
-      <Navigate to="/login" replace state={{ from: location.pathname }} />
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: sanitizeAppRedirectPath(location.pathname, '/dashboard') }}
+      />
     )
   }
 

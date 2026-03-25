@@ -36,6 +36,7 @@ jobs:
         env:
           # Mesmo caminho da URL: https://<org>.github.io/<nome-do-repo>/
           VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_USE_MOCKS: 'false'
         run: npm run build
 
       - name: SPA fallback (404 → index)

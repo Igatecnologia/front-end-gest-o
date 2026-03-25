@@ -173,6 +173,7 @@ Com **SGBR ativo**, use utilizador e senha fornecidos pelo ambiente integrado.
 ## Documentação complementar
 
 - **`ARCHITECTURE.md`** — visão de arquitetura.
+- **`SECURITY.md`** — tokens, CSP, builds de produção, dívida `xlsx`.
 - **`SPRINTS_CHECKLIST.md`** — histórico e itens de sprint.
 - **`DEPLOY_CHECKLIST.md`** — verificação antes de publicar.
 

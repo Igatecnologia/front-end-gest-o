@@ -5,6 +5,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { useAuth } from '../auth/AuthContext'
 import { publicAssetUrl } from '../utils/publicAssetUrl'
+import { sanitizeAppRedirectPath } from '../utils/sanitizeAppRedirectPath'
 import { IS_SGBR_BI_AUTH } from '../api/apiEnv'
 
 type LoginForm = {
@@ -19,8 +20,10 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const from =
-    (location.state as { from?: string } | null)?.from || '/dashboard'
+  const from = sanitizeAppRedirectPath(
+    (location.state as { from?: string } | null)?.from,
+    '/dashboard',
+  )
 
   if (isAuthenticated) return <Navigate to={from} replace />
 
