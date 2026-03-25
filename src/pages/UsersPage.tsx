@@ -6,6 +6,7 @@ import {
 } from '@ant-design/icons'
 import {
   Alert,
+  App,
   Button,
   Card,
   Col,
@@ -20,7 +21,6 @@ import {
   Skeleton,
   Space,
   Tag,
-  notification,
 } from 'antd'
 import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
@@ -34,6 +34,8 @@ import type { User, UserRole } from '../mocks/users'
 import { createUser, deleteUser, listUsers, updateUser } from '../services/usersService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../query/queryKeys'
+import { SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { DevErrorDetail } from '../components/DevErrorDetail'
 import { getErrorMessage } from '../api/httpError'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { pctDelta, shiftRange } from '../utils/dateRange'
@@ -57,6 +59,7 @@ function statusTag(status: User['status']) {
 }
 
 export function UsersPage() {
+  const { notification } = App.useApp()
   const { session } = useAuth()
   const canWrite = hasPermission(session, 'users:write')
   const [search, setSearch] = useState('')
@@ -200,10 +203,10 @@ export function UsersPage() {
               onConfirm={async () => {
                 try {
                   await deleteMutation.mutateAsync(record.id)
-                  notification.success({ message: 'Usuário excluído' })
+                  notification.success({ title: 'Usuário excluído' })
                 } catch (e) {
                   const message = getErrorMessage(e, 'Erro inesperado.')
-                  notification.error({ message: 'Usuários', description: message })
+                  notification.error({ title: 'Usuários', description: message })
                 }
               }}
             >
@@ -213,7 +216,7 @@ export function UsersPage() {
         ),
       },
     ],
-    [form, canWrite, deleteMutation],
+    [form, canWrite, deleteMutation, notification],
   )
 
   const headerExtra = (
@@ -224,7 +227,7 @@ export function UsersPage() {
       <Button
         type="primary"
         icon={<PlusOutlined />}
-        disabled={!canWrite}
+        disabled={!canWrite || SGBR_BI_ACTIVE}
         onClick={() => {
           setEditing(null)
           form.resetFields()
@@ -241,11 +244,24 @@ export function UsersPage() {
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
         title="Usuários"
-        subtitle="CRUD local (localStorage) para demonstrar fluxo completo."
+        subtitle={
+          SGBR_BI_ACTIVE
+            ? 'A API SGBR BI usada neste projeto não expõe cadastro de usuários. Use o painel do fornecedor se precisar.'
+            : 'Gestão de usuários via API configurada em VITE_API_BASE_URL.'
+        }
         extra={headerExtra}
       />
 
-      <Card className="app-card" bordered={false}>
+      {SGBR_BI_ACTIVE ? (
+        <Alert
+          type="info"
+          showIcon
+          title="Sem listagem de usuários pela API SGBR"
+          description="Esta tela permanece vazia até existir um endpoint dedicado ou outro backend em VITE_API_BASE_URL."
+        />
+      ) : null}
+
+      <Card className="app-card" variant="borderless">
         <Row gutter={[12, 12]} align="middle">
           <Col xs={24} md={10}>
             <Input.Search
@@ -361,8 +377,13 @@ export function UsersPage() {
           <Alert
             type="error"
             showIcon
-            message="Não foi possível carregar"
-            description={getErrorMessage(usersQuery.error, 'Falha ao carregar usuários.')}
+            title="Não foi possível carregar"
+            description={
+              <>
+                {getErrorMessage(usersQuery.error, 'Falha ao carregar usuários.')}
+                <DevErrorDetail error={usersQuery.error} />
+              </>
+            }
           />
         </Card>
       )}
@@ -379,7 +400,7 @@ export function UsersPage() {
       )}
 
       {!!filtered.length && (
-        <Card className="app-card quantum-table" bordered={false} title="Lista de usuários">
+        <Card className="app-card quantum-table" variant="borderless" title="Lista de usuários">
           {filtered.length > 100 ? (
             <VirtualTable
               rows={filtered}
@@ -414,16 +435,16 @@ export function UsersPage() {
               const patch: Partial<UserForm> = { ...rest }
               if (password) patch.password = password
               await updateMutation.mutateAsync({ id: editing.id, patch })
-              notification.success({ message: 'Usuário atualizado' })
+              notification.success({ title: 'Usuário atualizado' })
             } else {
               await createMutation.mutateAsync(values as Required<Pick<UserForm, 'password'>> & UserForm)
-              notification.success({ message: 'Usuário criado' })
+              notification.success({ title: 'Usuário criado' })
             }
             setModalOpen(false)
           } catch (e) {
             if (e && typeof e === 'object' && 'errorFields' in e) return
             const message = getErrorMessage(e, 'Erro inesperado.')
-            notification.error({ message: 'Usuários', description: message })
+            notification.error({ title: 'Usuários', description: message })
           } finally {
             setSaving(false)
           }

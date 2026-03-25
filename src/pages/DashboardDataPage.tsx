@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { DatePresetRange } from '../components/DatePresetRange'
+import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import type { DashboardMock } from '../mocks/dashboard'
@@ -33,7 +34,8 @@ export function DashboardDataPage() {
 
   const dashboardQuery = useQuery({
     queryKey: queryKeys.dashboard({ period }),
-    queryFn: () => getDashboardData({ delayMs: 700 }),
+    queryFn: () => getDashboardData({ delayMs: 700, period }),
+    staleTime: SGBR_BI_ACTIVE ? SGBR_ANALITICO_STALE_MS : undefined,
   })
 
   const rows = useMemo(() => {
@@ -78,13 +80,17 @@ export function DashboardDataPage() {
   ]
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
         title="Dados detalhados"
-        subtitle="Tabela operacional com ordenação, filtros e totais consolidados."
+        subtitle={
+          SGBR_BI_ACTIVE
+            ? 'Resumo de linhas de venda (últimos lançamentos) derivado da API SGBR. Detalhe linha a linha: Vendas analítico.'
+            : 'Tabela operacional com ordenação, filtros e totais consolidados.'
+        }
       />
 
-      <Card className="app-card" bordered={false}>
+      <Card className="app-card" variant="borderless">
         <Row gutter={[12, 12]}>
           <Col xs={24} md={10}>
             <Input.Search
@@ -169,7 +175,7 @@ export function DashboardDataPage() {
         </Row>
       </Card>
 
-      <Card className="app-card quantum-table" bordered={false} title="Pedidos">
+      <Card className="app-card quantum-table" variant="borderless" title="Pedidos">
         <Space wrap style={{ marginBottom: 12 }}>
           <Tag color="blue">Total: {formatBRL(totals.total)}</Tag>
           <Tag color="green">Pagos: {totals.byStatus.pago}</Tag>

@@ -17,8 +17,8 @@ export function MetricCard({
   const trendColor = trend === 'up' ? 'green' : trend === 'down' ? 'red' : 'default'
 
   return (
-    <Card className="app-card" bordered={false}>
-      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+    <Card className="app-card" variant="borderless">
+      <Space orientation="vertical" size={4} style={{ width: '100%' }}>
         <Typography.Text type="secondary">{title}</Typography.Text>
         <Typography.Title level={4} style={{ margin: 0 }}>
           {value}

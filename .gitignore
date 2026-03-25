@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Ambiente local (credenciais / URLs)
+.env
+.env.*
+!.env.example
+
 # Test / E2E artifacts
 test-results
 playwright-report

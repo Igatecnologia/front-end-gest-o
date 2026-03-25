@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse } from 'msw'
 import { auditMock } from '../audit'
 import { dashboardMock } from '../dashboard'
+import { financeMock } from '../finance'
 import { reportsMock } from '../reports'
 import { usersSeed, type User } from '../users'
 
@@ -11,6 +12,11 @@ function uid() {
 }
 
 export const handlers = [
+  http.get('*/finance', async () => {
+    await delay(450)
+    return HttpResponse.json(financeMock)
+  }),
+
   http.get('*/dashboard', async ({ request }) => {
     const url = new URL(request.url)
     const delayMs = Number(url.searchParams.get('delayMs') ?? 700)

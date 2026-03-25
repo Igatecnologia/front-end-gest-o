@@ -1,10 +1,11 @@
-import { LockOutlined, MailOutlined } from '@ant-design/icons'
+import { LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Form, Input, Space, Typography } from 'antd'
 import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { useAuth } from '../auth/AuthContext'
 import { publicAssetUrl } from '../utils/publicAssetUrl'
+import { IS_SGBR_BI_AUTH } from '../api/apiEnv'
 
 type LoginForm = {
   email: string
@@ -42,7 +43,11 @@ export function LoginPage() {
       <div className="login-card-wrap">
         <PageHeaderCard
           title="Entrar"
-          subtitle="IGA Gestão e Análise de Dados — use as credenciais de demo abaixo."
+          subtitle={
+            IS_SGBR_BI_AUTH
+              ? 'IGA — autenticação via API SGBR BI (usuário e senha).'
+              : 'IGA Gestão e Análise de Dados — use as credenciais de demo abaixo.'
+          }
           extra={
             <img
               src={publicAssetUrl('logo.png.png')}
@@ -56,29 +61,37 @@ export function LoginPage() {
           <Form<LoginForm>
             layout="vertical"
             onFinish={onFinish}
-            initialValues={{ email: 'admin@admin.com', password: 'admin' }}
+            initialValues={
+              IS_SGBR_BI_AUTH
+                ? { email: 'iga', password: '' }
+                : { email: 'admin@admin.com', password: 'admin' }
+            }
             scrollToFirstError
           >
             {errorMsg ? (
               <Alert
                 type="error"
                 showIcon
-                message={errorMsg}
+                title={errorMsg}
                 className="login-error-alert"
               />
             ) : null}
 
             <Form.Item
-              label="E-mail"
+              label={IS_SGBR_BI_AUTH ? 'Usuário' : 'E-mail'}
               name="email"
-              rules={[
-                { required: true, message: 'Informe o e-mail.' },
-                { type: 'email', message: 'E-mail inválido.' },
-              ]}
+              rules={
+                IS_SGBR_BI_AUTH
+                  ? [{ required: true, message: 'Informe o usuário.' }]
+                  : [
+                      { required: true, message: 'Informe o e-mail.' },
+                      { type: 'email', message: 'E-mail inválido.' },
+                    ]
+              }
             >
               <Input
-                prefix={<MailOutlined />}
-                placeholder="admin@admin.com"
+                prefix={IS_SGBR_BI_AUTH ? <UserOutlined /> : <MailOutlined />}
+                placeholder={IS_SGBR_BI_AUTH ? 'iga' : 'admin@admin.com'}
                 autoComplete="username"
               />
             </Form.Item>
@@ -90,12 +103,12 @@ export function LoginPage() {
             >
               <Input.Password
                 prefix={<LockOutlined />}
-                placeholder="admin"
+                placeholder={IS_SGBR_BI_AUTH ? 'Senha' : 'admin'}
                 autoComplete="current-password"
               />
             </Form.Item>
 
-            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
               <Button
                 type="primary"
                 htmlType="submit"
@@ -104,15 +117,21 @@ export function LoginPage() {
               >
                 Entrar
               </Button>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Demo:
-                <br />
-                <strong>admin@admin.com</strong> / <strong>admin</strong>
-                <br />
-                <strong>manager@admin.com</strong> / <strong>admin</strong>
-                <br />
-                <strong>viewer@admin.com</strong> / <strong>admin</strong>
-              </Typography.Text>
+              {IS_SGBR_BI_AUTH ? (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  A senha é enviada como SHA-256 (hex), como esperado pela API.
+                </Typography.Text>
+              ) : (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Demo:
+                  <br />
+                  <strong>admin@admin.com</strong> / <strong>admin</strong>
+                  <br />
+                  <strong>manager@admin.com</strong> / <strong>admin</strong>
+                  <br />
+                  <strong>viewer@admin.com</strong> / <strong>admin</strong>
+                </Typography.Text>
+              )}
             </Space>
           </Form>
         </Card>

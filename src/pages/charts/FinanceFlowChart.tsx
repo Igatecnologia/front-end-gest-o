@@ -1,4 +1,5 @@
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'recharts'
+import { ChartShell } from '../../components/ChartShell'
 import type { FinanceOverview } from '../../mocks/finance'
 
 function formatBRL(value: number) {
@@ -7,8 +8,8 @@ function formatBRL(value: number) {
 
 export function FinanceFlowChart({ data }: { data: FinanceOverview['monthlyFlow'] }) {
   return (
-    <div style={{ width: '100%', height: 300 }} role="region" aria-label="Fluxo financeiro mensal">
-      <ResponsiveContainer width="100%" height="100%">
+    <div role="region" aria-label="Fluxo financeiro mensal">
+      <ChartShell height={300}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="month" />
@@ -19,7 +20,7 @@ export function FinanceFlowChart({ data }: { data: FinanceOverview['monthlyFlow'
           <Bar dataKey="custos" name="Custos" fill="rgba(255,77,79,0.75)" />
           <Bar dataKey="lucro" name="Lucro" fill="rgba(22,119,255,0.75)" />
         </BarChart>
-      </ResponsiveContainer>
+      </ChartShell>
     </div>
   )
 }

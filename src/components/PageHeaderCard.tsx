@@ -8,7 +8,7 @@ type PageHeaderCardProps = {
 
 export function PageHeaderCard({ title, subtitle, extra }: PageHeaderCardProps) {
   return (
-    <Card className="app-card page-header-card" bordered={false}>
+    <Card className="app-card page-header-card" variant="borderless">
       <Space
         style={{ width: '100%', justifyContent: 'space-between' }}
         align="center"

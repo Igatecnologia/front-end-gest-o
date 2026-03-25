@@ -6,6 +6,7 @@ import {
   FileTextOutlined,
   MenuOutlined,
   MoonOutlined,
+  ShoppingCartOutlined,
   SunOutlined,
   TeamOutlined,
   TableOutlined,
@@ -18,6 +19,7 @@ import {
   Layout,
   Menu,
   Space,
+  Tag,
   Tooltip,
   Typography,
   theme,
@@ -29,6 +31,7 @@ import { useAuth } from '../auth/AuthContext'
 import { hasPermission } from '../auth/permissions'
 import { useAppTheme } from '../theme/ThemeContext'
 import { publicAssetUrl } from '../utils/publicAssetUrl'
+import { SGBR_BI_ACTIVE, getAppEnvBadge } from '../api/apiEnv'
 
 const { Header, Sider, Content } = Layout
 
@@ -36,6 +39,7 @@ function useSelectedMenuKey(pathname: string) {
   return useMemo(() => {
     if (pathname.startsWith('/dashboard/analises')) return 'dashboard-analises'
     if (pathname.startsWith('/dashboard/dados')) return 'dashboard-dados'
+    if (pathname.startsWith('/dashboard/vendas-analitico')) return 'dashboard-vendas-analitico'
     if (pathname.startsWith('/financeiro')) return 'financeiro'
     if (pathname.startsWith('/relatorios')) return 'relatorios'
     if (pathname.startsWith('/usuarios')) return 'usuarios'
@@ -54,6 +58,7 @@ export function AppLayout() {
   const { token } = theme.useToken()
   const screens = Grid.useBreakpoint()
   const navigate = useNavigate()
+  const envBadge = useMemo(() => getAppEnvBadge(), [])
 
   const navItems = useMemo(() => {
     const items: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
@@ -77,6 +82,11 @@ export function AppLayout() {
         icon: <TableOutlined />,
         label: <Link to="/dashboard/dados">Dados detalhados</Link>,
       })
+      dashboardChildren.push({
+        key: 'dashboard-vendas-analitico',
+        icon: <ShoppingCartOutlined />,
+        label: <Link to="/dashboard/vendas-analitico">Vendas analítico</Link>,
+      })
     }
 
     if (hasPermission(session, 'reports:view')) {
@@ -92,7 +102,7 @@ export function AppLayout() {
       })
     }
 
-    if (hasPermission(session, 'users:view')) {
+    if (!SGBR_BI_ACTIVE && hasPermission(session, 'users:view')) {
       adminChildren.push({
         key: 'usuarios',
         icon: <TeamOutlined />,
@@ -100,7 +110,7 @@ export function AppLayout() {
       })
     }
 
-    if (hasPermission(session, 'audit:view')) {
+    if (!SGBR_BI_ACTIVE && hasPermission(session, 'audit:view')) {
       adminChildren.push({
         key: 'auditoria',
         icon: <FileSearchOutlined />,
@@ -261,21 +271,28 @@ export function AppLayout() {
               width: '100%',
             }}
           >
-            <Typography.Title level={5} style={{ margin: 0 }}>
-              {selectedKey === 'relatorios'
-                ? 'Relatórios'
-                : selectedKey === 'financeiro'
-                  ? 'Financeiro'
-                : selectedKey === 'usuarios'
-                  ? 'Usuários'
-                  : selectedKey === 'auditoria'
-                    ? 'Auditoria'
-                    : selectedKey === 'dashboard-analises'
-                      ? 'Análises BI'
-                      : selectedKey === 'dashboard-dados'
-                        ? 'Dados detalhados'
-                        : 'Dashboard'}
-            </Typography.Title>
+            <Space align="center" size={10}>
+              <Typography.Title level={5} style={{ margin: 0 }}>
+                {selectedKey === 'relatorios'
+                  ? 'Relatórios'
+                  : selectedKey === 'financeiro'
+                    ? 'Financeiro'
+                  : selectedKey === 'usuarios'
+                    ? 'Usuários'
+                    : selectedKey === 'auditoria'
+                      ? 'Auditoria'
+                      : selectedKey === 'dashboard-analises'
+                        ? 'Análises BI'
+                        : selectedKey === 'dashboard-dados'
+                          ? 'Dados detalhados'
+                          : 'Dashboard'}
+              </Typography.Title>
+              {envBadge ? (
+                <Tag color={envBadge.color} style={{ margin: 0 }}>
+                  {envBadge.label}
+                </Tag>
+              ) : null}
+            </Space>
             <Space>
               {screens.xs ? (
                 <Button

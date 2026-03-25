@@ -41,6 +41,32 @@ export const dashboardResponseSchema = z.object({
   latest: z.array(dashboardLatestRowSchema),
 })
 
+export const financeEntrySchema = z.object({
+  id: z.string().min(1),
+  date: z.string().min(1),
+  category: z.enum(['Receita', 'Custo Fixo', 'Custo Variável', 'Imposto']),
+  description: z.string().min(1),
+  amount: z.number(),
+})
+
+export const financeOverviewSchema = z.object({
+  receita: z.number(),
+  custos: z.number(),
+  lucro: z.number(),
+  margemPct: z.number(),
+  /** Presente quando a visão é montada a partir de `vendas/analitico` (contagem de linhas retornadas). */
+  linhasCount: z.number().int().nonnegative().optional(),
+  monthlyFlow: z.array(
+    z.object({
+      month: z.string().min(1),
+      receita: z.number(),
+      custos: z.number(),
+      lucro: z.number(),
+    }),
+  ),
+  entries: z.array(financeEntrySchema),
+})
+
 export const reportItemSchema = z.object({
   id: z.string().min(1),
   nome: z.string().min(1),
@@ -121,3 +147,38 @@ export const auditLogSchema = z.object({
 })
 
 export const auditResponseSchema = z.array(auditLogSchema)
+
+/** Resposta de `POST /sgbrbi/usuario/login` */
+export const sgbrUsuarioLoginResponseSchema = z.object({
+  id_usuario: z.number().int(),
+  nome_usuario: z.string(),
+  email: z.string().nullable().optional(),
+  celular: z.string().nullable().optional(),
+  data_cadastro: z.string().optional(),
+  token: z.string().min(1),
+})
+
+/** Item de `GET /sgbrbi/vendas/analitico` */
+export const vendaAnaliticaRowSchema = z
+  .object({
+    data: z.string(),
+    codprod: z.union([z.number(), z.string()]),
+    decprod: z.string(),
+    qtdevendida: z.number(),
+    und: z.string(),
+    qtdeconvertidavd: z.number(),
+    precocustoitem: z.number(),
+    valorunit: z.number(),
+    total: z.number(),
+    codcliente: z.union([z.number(), z.string()]),
+    nomecliente: z.string(),
+    cepcliente: z.string().optional().nullable(),
+    totalprodutos: z.number(),
+    statuspedido: z.string(),
+    datafec: z.string(),
+  })
+  .passthrough()
+
+export const vendasAnaliticoResponseSchema = z.array(vendaAnaliticaRowSchema)
+
+export type VendaAnaliticaRow = z.infer<typeof vendaAnaliticaRowSchema>

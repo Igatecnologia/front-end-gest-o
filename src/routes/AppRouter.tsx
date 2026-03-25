@@ -16,6 +16,9 @@ const DashboardInsightsPage = lazy(() =>
 const DashboardDataPage = lazy(() =>
   import('../pages/DashboardDataPage').then((m) => ({ default: m.DashboardDataPage })),
 )
+const VendasAnaliticoPage = lazy(() =>
+  import('../pages/VendasAnaliticoPage').then((m) => ({ default: m.VendasAnaliticoPage })),
+)
 const ReportsPage = lazy(() =>
   import('../pages/ReportsPage').then((m) => ({ default: m.ReportsPage })),
 )
@@ -82,6 +85,14 @@ export function AppRouter() {
             element={
               <RequirePermission permission="dashboard:view">
                 <DashboardDataPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/dashboard/vendas-analitico"
+            element={
+              <RequirePermission permission="dashboard:view">
+                <VendasAnaliticoPage />
               </RequirePermission>
             }
           />

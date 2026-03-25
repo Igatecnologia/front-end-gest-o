@@ -11,6 +11,7 @@ export type FinanceOverview = {
   custos: number
   lucro: number
   margemPct: number
+  linhasCount?: number
   monthlyFlow: Array<{
     month: string
     receita: number

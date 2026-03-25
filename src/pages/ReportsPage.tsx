@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons'
 import {
   Alert,
+  App,
   Button,
   Card,
   Col,
@@ -25,7 +26,6 @@ import {
   Table,
   Tag,
   Typography,
-  notification,
 } from 'antd'
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -35,16 +35,11 @@ import { useSearchParams } from 'react-router-dom'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Bar, BarChart, CartesianGrid, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
 import * as XLSX from 'xlsx'
+import { ChartShell } from '../components/ChartShell'
+import { DevErrorDetail } from '../components/DevErrorDetail'
+import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { DatePresetRange } from '../components/DatePresetRange'
 import { MetricCard } from '../components/MetricCard'
@@ -82,6 +77,7 @@ const REPORT_TYPE_OPTIONS: ReportItem['tipo'][] = [
 ]
 
 export function ReportsPage() {
+  const { notification } = App.useApp()
   const { session } = useAuth()
   const canExport = hasPermission(session, 'reports:export')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -103,6 +99,12 @@ export function ReportsPage() {
   const sortBy = (searchParams.get('sortBy') ?? 'atualizadoEm') as 'atualizadoEm' | 'nome' | 'tipo'
   const sortOrder = (searchParams.get('sortOrder') ?? 'desc') as 'asc' | 'desc'
   const shifted = shiftRange(startDate, endDate)
+  const reportsStaleMs = SGBR_BI_ACTIVE ? SGBR_ANALITICO_STALE_MS : 30_000
+
+  const makeExportBasename = () => {
+    const tail = `${startDate || 'ini'}_${endDate || 'fim'}_${dayjs().format('YYYY-MM-DD_HHmm')}`
+    return SGBR_BI_ACTIVE ? `relatorios_sgbr_${tail}` : `relatorios_${tail}`
+  }
 
   const reportsQuery = useQuery({
     queryKey: queryKeys.reports({
@@ -131,7 +133,7 @@ export function ReportsPage() {
         sortBy,
         sortOrder,
       }),
-    staleTime: 30_000,
+    staleTime: reportsStaleMs,
   })
 
   const schedulesQuery = useQuery({
@@ -166,7 +168,7 @@ export function ReportsPage() {
         sortOrder,
       }),
     enabled: !!shifted,
-    staleTime: 30_000,
+    staleTime: reportsStaleMs,
   })
 
   const createScheduleMutation = useMutation({
@@ -194,11 +196,11 @@ export function ReportsPage() {
   useEffect(() => {
     if (reportsQuery.isError) {
       notification.error({
-        message: 'Relatórios',
+        title: 'Relatórios',
         description: getErrorMessage(reportsQuery.error, 'Falha ao carregar relatórios.'),
       })
     }
-  }, [reportsQuery.isError, reportsQuery.error])
+  }, [reportsQuery.isError, reportsQuery.error, notification])
 
   const columns: ColumnsType<ReportItem> = useMemo(
     () => [
@@ -329,7 +331,7 @@ export function ReportsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `relatorios_${dayjs().format('YYYY-MM-DD_HH-mm')}.csv`
+    a.download = `${makeExportBasename()}.csv`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -340,7 +342,7 @@ export function ReportsPage() {
     const sheet = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, sheet, 'Relatorios')
-    XLSX.writeFile(wb, `relatorios_${dayjs().format('YYYY-MM-DD_HH-mm')}.xlsx`)
+    XLSX.writeFile(wb, `${makeExportBasename()}.xlsx`)
   }
 
   function downloadPdf(rows: ReportItem[]) {
@@ -369,7 +371,7 @@ export function ReportsPage() {
         dayjs(r.atualizadoEm).format('DD/MM/YYYY'),
       ]),
     })
-    doc.save(`relatorio_executivo_${dayjs().format('YYYY-MM-DD_HH-mm')}.pdf`)
+    doc.save(`${makeExportBasename()}_executivo.pdf`)
   }
 
   async function exportChartAsPng() {
@@ -378,7 +380,7 @@ export function ReportsPage() {
     const url = canvas.toDataURL('image/png')
     const a = document.createElement('a')
     a.href = url
-    a.download = `grafico_relatorios_${dayjs().format('YYYY-MM-DD_HH-mm')}.png`
+    a.download = `${makeExportBasename()}_grafico.png`
     a.click()
   }
 
@@ -389,7 +391,7 @@ export function ReportsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `grafico_relatorios_${dayjs().format('YYYY-MM-DD_HH-mm')}.svg`
+    a.download = `${makeExportBasename()}_grafico.svg`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -405,14 +407,18 @@ export function ReportsPage() {
       params: searchParams.toString(),
     })
     setFiltersVersion((x) => x + 1)
-    notification.success({ message: 'Filtro salvo para o usuário.' })
+    notification.success({ title: 'Filtro salvo para o usuário.' })
   }
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
         title="Relatórios"
-        subtitle="Relatórios empresariais com filtros avançados, exportações e agendamento."
+        subtitle={
+          SGBR_BI_ACTIVE
+            ? 'Indicadores sintéticos (receita, ticket, tops) calculados sobre vendas analítico no intervalo dos filtros.'
+            : 'Relatórios empresariais com filtros avançados, exportações e agendamento.'
+        }
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={() => reportsQuery.refetch()}>
@@ -466,7 +472,7 @@ export function ReportsPage() {
         }
       />
 
-      <Card className="app-card" bordered={false} title="Filtros e ações rápidas">
+      <Card className="app-card" variant="borderless" title="Filtros e ações rápidas">
         <Space wrap>
           <Select
             style={{ width: 220 }}
@@ -642,8 +648,8 @@ export function ReportsPage() {
       </Row>
 
       {!!saved.views.length && (
-        <Card className="app-card" bordered={false} title="Gerenciar views salvas">
-          <Space direction="vertical" style={{ width: '100%' }} size={8}>
+        <Card className="app-card" variant="borderless" title="Gerenciar views salvas">
+          <Space orientation="vertical" style={{ width: '100%' }} size={8}>
             {saved.views.map((v) => (
               <Space
                 key={v.id}
@@ -675,8 +681,8 @@ export function ReportsPage() {
       )}
 
       {!!userFilters.length && (
-        <Card className="app-card" bordered={false} title="Filtros salvos por usuário">
-          <Space direction="vertical" style={{ width: '100%' }} size={8}>
+        <Card className="app-card" variant="borderless" title="Filtros salvos por usuário">
+          <Space orientation="vertical" style={{ width: '100%' }} size={8}>
             {userFilters.map((f) => (
               <Space key={f.id} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
                 <div>
@@ -718,8 +724,13 @@ export function ReportsPage() {
           <Alert
             type="error"
             showIcon
-            message="Não foi possível carregar"
-            description={getErrorMessage(reportsQuery.error, 'Falha ao carregar relatórios.')}
+            title="Não foi possível carregar"
+            description={
+              <>
+                {getErrorMessage(reportsQuery.error, 'Falha ao carregar relatórios.')}
+                <DevErrorDetail error={reportsQuery.error} />
+              </>
+            }
           />
         </Card>
       )}
@@ -736,22 +747,20 @@ export function ReportsPage() {
       )}
 
       {!!rows.length && (
-        <Card className="app-card quantum-table" bordered={false} title="Lista de relatórios">
+        <Card className="app-card quantum-table" variant="borderless" title="Lista de relatórios">
           <div ref={chartRef} style={{ width: '100%', height: 260, marginBottom: 16 }}>
             <Typography.Title level={5} style={{ marginTop: 0 }}>
               Resumo visual por tipo
             </Typography.Title>
-            <div style={{ width: '100%', height: 210 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={byType}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="tipo" />
-                  <YAxis allowDecimals={false} />
-                  <RechartsTooltip />
-                  <Bar dataKey="total" fill="rgba(79, 70, 229, 0.75)" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <ChartShell height={210}>
+              <BarChart data={byType}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="tipo" />
+                <YAxis allowDecimals={false} />
+                <RechartsTooltip />
+                <Bar dataKey="total" fill="rgba(79, 70, 229, 0.75)" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ChartShell>
           </div>
           <Table
             rowKey="id"
@@ -782,7 +791,7 @@ export function ReportsPage() {
             nextRunAt: dayjs().add(7, 'day').toISOString(),
           })
           setScheduleOpen(false)
-          notification.success({ message: 'Agendamento simulado criado.' })
+          notification.success({ title: 'Agendamento simulado criado.' })
         }}
         title="Agendar relatório (simulado)"
         okText="Criar agendamento"
@@ -794,8 +803,8 @@ export function ReportsPage() {
       </Modal>
 
       {!!(schedulesQuery.data?.length ?? 0) && (
-        <Card className="app-card" bordered={false} title="Agendamentos simulados">
-          <Space direction="vertical" style={{ width: '100%' }} size={8}>
+        <Card className="app-card" variant="borderless" title="Agendamentos simulados">
+          <Space orientation="vertical" style={{ width: '100%' }} size={8}>
             {(schedulesQuery.data ?? []).map((s) => (
               <Space key={s.id} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
                 <div>

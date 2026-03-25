@@ -6,7 +6,6 @@ import {
   Col,
   DatePicker,
   Empty,
-  List,
   Row,
   Segmented,
   Select,
@@ -17,26 +16,26 @@ import {
   Typography,
 } from 'antd'
 import dayjs from 'dayjs'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Bar, BarChart, CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
+
+function formatBRLAxisShort(n: number) {
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(0)}k`
+  return String(Math.round(n))
+}
+import { ChartShell } from '../components/ChartShell'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { DatePresetRange } from '../components/DatePresetRange'
+import { DevErrorDetail } from '../components/DevErrorDetail'
+import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import { getErrorMessage } from '../api/httpError'
 import { useRealtimeHeartbeat } from '../hooks/useRealtimeHeartbeat'
+import { coerceTooltipNumber, coerceTooltipNumberOr } from '../utils/rechartsTooltip'
 
 function formatBRL(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -48,8 +47,13 @@ function deltaColor(deltaPct: number) {
   return 'default'
 }
 
+const SGBR_PERMS_INFO_KEY = 'iga-dismiss-sgbr-permissions-info'
+
 export function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const [sgbrInfoVisible, setSgbrInfoVisible] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem(SGBR_PERMS_INFO_KEY) !== '1',
+  )
   const period = (searchParams.get('p') ?? '30d') as '7d' | '30d' | '90d'
   const startDate = searchParams.get('start') ?? ''
   const endDate = searchParams.get('end') ?? ''
@@ -59,9 +63,9 @@ export function DashboardPage() {
 
   const dashboardQuery = useQuery({
     queryKey: queryKeys.dashboard({ period, pollMs: String(pollMs) }),
-    queryFn: () => getDashboardData({ delayMs: 700 }),
+    queryFn: () => getDashboardData({ delayMs: 700, period }),
     refetchInterval: realtimeEnabled ? pollMs : false,
-    staleTime: 15_000,
+    staleTime: SGBR_BI_ACTIVE ? SGBR_ANALITICO_STALE_MS : 15_000,
   })
 
   const revenueTotal = useMemo(
@@ -107,7 +111,11 @@ export function DashboardPage() {
   const header = (
     <PageHeaderCard
       title="Dashboard executivo"
-      subtitle="Visão rápida dos principais indicadores."
+      subtitle={
+        SGBR_BI_ACTIVE
+          ? 'Indicadores calculados a partir de vendas analítico (API SGBR BI), conforme o período acima.'
+          : 'Visão rápida dos principais indicadores.'
+      }
       extra={
         <Button icon={<ReloadOutlined />} onClick={() => dashboardQuery.refetch()}>
           Atualizar
@@ -118,7 +126,7 @@ export function DashboardPage() {
 
   if (dashboardQuery.isLoading || dashboardQuery.isFetching) {
     return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
         {header}
         <Row gutter={[16, 16]}>
           {[1, 2, 3].map((k) => (
@@ -145,11 +153,13 @@ export function DashboardPage() {
         <Alert
           type="error"
           showIcon
-          message="Não foi possível carregar"
-          description={getErrorMessage(
-            dashboardQuery.error,
-            'Falha ao carregar dados do dashboard.',
-          )}
+          title="Não foi possível carregar"
+          description={
+            <>
+              {getErrorMessage(dashboardQuery.error, 'Falha ao carregar dados do dashboard.')}
+              <DevErrorDetail error={dashboardQuery.error} />
+            </>
+          }
         />
       </Card>
     )
@@ -160,7 +170,7 @@ export function DashboardPage() {
 
   if (!data.kpis.length && !data.sales.length) {
     return (
-      <Card className="app-card" bordered={false}>
+      <Card className="app-card" variant="borderless">
         <div style={{ marginBottom: 16 }}>{header}</div>
         <Empty description="Sem dados para exibir no momento." />
       </Card>
@@ -168,10 +178,24 @@ export function DashboardPage() {
   }
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       {header}
 
-      <Card className="app-card" bordered={false} title="Período">
+      {SGBR_BI_ACTIVE && sgbrInfoVisible ? (
+        <Alert
+          type="info"
+          showIcon
+          closable
+          title="Permissões neste módulo (SGBR BI)"
+          description="Com o login da API SGBR, este aplicativo aplica um perfil administrativo fixo no menu e nas ações. Papéis diferentes no ERP ainda não são refletidos aqui; fale com a TI se precisar restringir por usuário."
+          onClose={() => {
+            localStorage.setItem(SGBR_PERMS_INFO_KEY, '1')
+            setSgbrInfoVisible(false)
+          }}
+        />
+      ) : null}
+
+      <Card className="app-card" variant="borderless" title="Período">
         <Space wrap>
           <Segmented
             aria-label="Selecionar período do dashboard"
@@ -240,15 +264,18 @@ export function DashboardPage() {
       <Row gutter={[16, 16]}>
         {data.kpis.map((kpi) => (
           <Col key={kpi.key} xs={24} sm={12} lg={8}>
-            <Card className="app-card" bordered={false}>
+            <Card className="app-card" variant="borderless">
               <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                 <Statistic
                   title={kpi.label}
                   value={kpi.key === 'faturamento' ? formatBRL(kpi.value) : kpi.value}
                 />
-                <Tag color={deltaColor(kpi.deltaPct)}>
-                  {kpi.deltaPct > 0 ? '+' : ''}
-                  {kpi.deltaPct.toFixed(1)}%
+                <Tag color={kpi.deltaPct === 0 ? 'default' : deltaColor(kpi.deltaPct)}>
+                  {kpi.deltaPct === 0
+                    ? SGBR_BI_ACTIVE
+                      ? 'Sem comparativo na API'
+                      : 'Período único'
+                    : `${kpi.deltaPct > 0 ? '+' : ''}${kpi.deltaPct.toFixed(1)}%`}
                 </Tag>
               </Space>
             </Card>
@@ -258,45 +285,65 @@ export function DashboardPage() {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <Card title="Vendas (últimos dias)">
-            <div style={{ width: '100%', height: 260 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={filteredSales}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#1677ff"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+          <Card variant="borderless" className="app-card">
+            <Typography.Title level={5} style={{ marginTop: 0 }}>
+              Quantidade vendida por dia
+            </Typography.Title>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 12, fontSize: 13 }}>
+              Cada ponto é a soma das <strong>unidades</strong> vendidas naquele dia (mesmo critério da API analítica).
+              Eixo horizontal: dia/mês do recorte.
+            </Typography.Paragraph>
+            <ChartShell>
+              <LineChart data={filteredSales} margin={{ left: 8, right: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} label={{ value: 'Dia', position: 'insideBottom', offset: -4 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: 'Unidades', angle: -90, position: 'insideLeft' }} />
+                <Tooltip
+                  formatter={(v) => [`${coerceTooltipNumberOr(v, 0)} unidades`, 'Total no dia']}
+                  labelFormatter={(l) => `Data: ${l}`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  name="Quantidade"
+                  stroke="#1677ff"
+                  strokeWidth={2}
+                  dot={{ fill: '#1677ff', r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ChartShell>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card title="Faturamento (últimos meses)">
-            <div style={{ width: '100%', height: 260 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.revenue}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip formatter={(v) => formatBRL(Number(v))} />
-                  <Bar dataKey="value" fill="rgba(22, 119, 255, 0.65)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <Card variant="borderless" className="app-card">
+            <Typography.Title level={5} style={{ marginTop: 0 }}>
+              Faturamento por mês
+            </Typography.Title>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 12, fontSize: 13 }}>
+              Total em <strong>reais (R$)</strong> faturado em cada mês do período selecionado acima.
+            </Typography.Paragraph>
+            <ChartShell>
+              <BarChart data={data.revenue} margin={{ left: 8, right: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} label={{ value: 'Mês', position: 'insideBottom', offset: -4 }} />
+                <YAxis tickFormatter={formatBRLAxisShort} width={52} tick={{ fontSize: 11 }} label={{ value: 'R$', angle: -90, position: 'insideLeft' }} />
+                <Tooltip
+                  formatter={(v) => {
+                    const n = coerceTooltipNumber(v)
+                    return [(n !== undefined ? formatBRL(n) : ''), 'Faturamento']
+                  }}
+                  labelFormatter={(l) => `Mês: ${l}`}
+                />
+                <Bar dataKey="value" name="Faturamento" fill="rgba(22, 119, 255, 0.65)" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ChartShell>
           </Card>
         </Col>
       </Row>
 
-      <Card className="app-card" bordered={false}>
-        <Space direction="vertical" size={6}>
+      <Card className="app-card" variant="borderless">
+        <Space orientation="vertical" size={6}>
           <Typography.Title level={5} style={{ margin: 0 }}>
             Navegação por contexto
           </Typography.Title>
@@ -330,28 +377,32 @@ export function DashboardPage() {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <Card className="app-card" bordered={false} title="Insights automáticos">
+          <Card className="app-card" variant="borderless" title="Insights automáticos">
             {!insights.suggestions.length ? (
               <Typography.Text type="secondary">Sem sugestões automáticas no momento.</Typography.Text>
             ) : (
-              <List
-                size="small"
-                dataSource={insights.suggestions}
-                renderItem={(item) => <List.Item>{item}</List.Item>}
-              />
+              <ul style={{ margin: 0, paddingInlineStart: 20 }}>
+                {insights.suggestions.map((item, i) => (
+                  <li key={`s-${i}`}>
+                    <Typography.Text>{item}</Typography.Text>
+                  </li>
+                ))}
+              </ul>
             )}
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card className="app-card" bordered={false} title="Anomalias detectadas">
+          <Card className="app-card" variant="borderless" title="Anomalias detectadas">
             {!insights.anomalies.length ? (
               <Typography.Text type="secondary">Nenhuma anomalia relevante detectada.</Typography.Text>
             ) : (
-              <List
-                size="small"
-                dataSource={insights.anomalies}
-                renderItem={(item) => <List.Item>{item}</List.Item>}
-              />
+              <ul style={{ margin: 0, paddingInlineStart: 20 }}>
+                {insights.anomalies.map((item, i) => (
+                  <li key={`a-${i}`}>
+                    <Typography.Text>{item}</Typography.Text>
+                  </li>
+                ))}
+              </ul>
             )}
           </Card>
         </Col>

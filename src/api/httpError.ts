@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { ZodError } from 'zod'
 import { ApiContractError } from './validatedHttp'
 
 const statusMessages: Record<number, string> = {
@@ -27,7 +28,14 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const status = error.response?.status
     const data = error.response?.data as { message?: string } | undefined
-    return data?.message?.trim() || getHttpStatusMessage(status)
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      return 'Tempo limite da requisição esgotado. O servidor pode estar lento ou o período consultado muito grande. Tente de novo ou reduza o intervalo de datas.'
+    }
+    if (data?.message?.trim()) return data.message.trim()
+    if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+      return 'Sem resposta do servidor (rede ou CORS). Em desenvolvimento, tente VITE_SGBR_BI_BASE_URL=proxy no .env.'
+    }
+    return getHttpStatusMessage(status)
   }
 
   if (error instanceof Error && error.message.trim()) {
@@ -35,4 +43,20 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback
+}
+
+/** Só em desenvolvimento: detalhe de contrato Zod para suporte. */
+export function getTechnicalErrorDetail(error: unknown): string | null {
+  if (!import.meta.env.DEV) return null
+  if (error instanceof ApiContractError && error.details instanceof ZodError) {
+    return JSON.stringify(error.details.issues, null, 2)
+  }
+  if (error instanceof ApiContractError && error.details != null) {
+    try {
+      return JSON.stringify(error.details, null, 2).slice(0, 8000)
+    } catch {
+      return String(error.details)
+    }
+  }
+  return null
 }

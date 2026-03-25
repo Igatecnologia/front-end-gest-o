@@ -1,6 +1,7 @@
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import {
   Alert,
+  App,
   Button,
   Card,
   Col,
@@ -13,7 +14,6 @@ import {
   Space,
   Tag,
   Typography,
-  notification,
 } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useMemo } from 'react'
@@ -27,6 +27,8 @@ import { hasPermission } from '../auth/permissions'
 import { listAuditLogs, type AuditAction, type AuditLog } from '../services/auditService'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '../query/queryKeys'
+import { SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { DevErrorDetail } from '../components/DevErrorDetail'
 import { getErrorMessage } from '../api/httpError'
 import { pctDelta, shiftRange } from '../utils/dateRange'
 
@@ -82,6 +84,7 @@ function downloadCsv(rows: AuditLog[]) {
 }
 
 export function AuditPage() {
+  const { notification } = App.useApp()
   const { session } = useAuth()
   const canExport = hasPermission(session, 'audit:export')
   const [searchParams, setSearchParams] = useSearchParams()
@@ -137,11 +140,11 @@ export function AuditPage() {
   useEffect(() => {
     if (auditQuery.isError) {
       notification.error({
-        message: 'Auditoria',
+        title: 'Auditoria',
         description: getErrorMessage(auditQuery.error, 'Falha ao carregar logs.'),
       })
     }
-  }, [auditQuery.isError, auditQuery.error])
+  }, [auditQuery.isError, auditQuery.error, notification])
 
   const data = (auditQuery.data ?? []).filter((row) => {
     const matchDate =
@@ -181,7 +184,11 @@ export function AuditPage() {
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
         title="Auditoria"
-        subtitle="Logs de ações do sistema (mock) com filtros na URL e export CSV."
+        subtitle={
+          SGBR_BI_ACTIVE
+            ? 'Logs de auditoria não estão disponíveis na API SGBR integrada. Ative um serviço de log ou outra API.'
+            : 'Logs de ações do sistema com filtros na URL e export CSV.'
+        }
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={() => auditQuery.refetch()}>
@@ -198,7 +205,16 @@ export function AuditPage() {
         }
       />
 
-      <Card className="app-card" bordered={false}>
+      {SGBR_BI_ACTIVE ? (
+        <Alert
+          type="info"
+          showIcon
+          title="Auditoria não fornecida pela API SGBR"
+          description="Nenhum dado será listado até existir endpoint compatível em VITE_API_BASE_URL."
+        />
+      ) : null}
+
+      <Card className="app-card" variant="borderless">
         <Space wrap>
           <Input.Search
             allowClear
@@ -324,8 +340,13 @@ export function AuditPage() {
           <Alert
             type="error"
             showIcon
-            message="Não foi possível carregar"
-            description={getErrorMessage(auditQuery.error, 'Falha ao carregar logs.')}
+            title="Não foi possível carregar"
+            description={
+              <>
+                {getErrorMessage(auditQuery.error, 'Falha ao carregar logs.')}
+                <DevErrorDetail error={auditQuery.error} />
+              </>
+            }
           />
         </Card>
       )}
@@ -342,8 +363,8 @@ export function AuditPage() {
       )}
 
       {!!data.length && (
-        <Card className="app-card quantum-table" bordered={false} title="Logs">
-          <Space direction="vertical" size={8} style={{ marginBottom: 12, width: '100%' }}>
+        <Card className="app-card quantum-table" variant="borderless" title="Logs">
+          <Space orientation="vertical" size={8} style={{ marginBottom: 12, width: '100%' }}>
             <Typography.Text type="secondary">
               LGPD ativo: campos sensíveis ficam mascarados e o acesso é registrado.
             </Typography.Text>
@@ -352,7 +373,7 @@ export function AuditPage() {
                 disabled={!canRevealPII}
                 onClick={() => {
                   notification.info({
-                    message: 'Acesso sensível registrado',
+                    title: 'Acesso sensível registrado',
                     description:
                       'Visualização de PII marcada no log para fins de compliance (simulado).',
                   })

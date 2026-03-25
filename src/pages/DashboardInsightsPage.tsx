@@ -1,4 +1,4 @@
-import { Card, DatePicker, Segmented, Skeleton, Space, Tag } from 'antd'
+import { Card, DatePicker, Segmented, Skeleton, Space, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Suspense, lazy } from 'react'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { DatePresetRange } from '../components/DatePresetRange'
+import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 const DashboardInsightsCharts = lazy(() =>
@@ -21,7 +22,8 @@ export function DashboardInsightsPage() {
   const end = searchParams.get('end') ?? ''
   const dashboardQuery = useQuery({
     queryKey: queryKeys.dashboard({ period }),
-    queryFn: () => getDashboardData({ delayMs: 700 }),
+    queryFn: () => getDashboardData({ delayMs: 700, period }),
+    staleTime: SGBR_BI_ACTIVE ? SGBR_ANALITICO_STALE_MS : undefined,
   })
 
   const filteredData = useMemo(() => {
@@ -38,12 +40,23 @@ export function DashboardInsightsPage() {
   if (!filteredData) return null
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
         title="Análises BI"
-        subtitle="Visualizações avançadas com recorte temporal para tendência, correlação e conversão."
+        subtitle={
+          SGBR_BI_ACTIVE
+            ? 'Cada gráfico explica um recorte das suas vendas (leia o texto cinza embaixo do título). Altere o período para recarregar da API.'
+            : 'Visualizações com recorte temporal; com API de demonstração há blocos extras claramente marcados como exemplo.'
+        }
       />
-      <Card className="app-card" bordered={false} title="Controles da análise">
+      <Card size="small" variant="borderless" style={{ background: 'rgba(22, 119, 255, 0.06)' }}>
+        <Typography.Paragraph style={{ margin: 0, fontSize: 14 }}>
+          <strong>Dica:</strong> comece pelo resumo no topo (&quot;Como ler esta tela&quot;) e pelos três gráficos da
+          primeira fileira — eles respondem: quanto faturou ao longo do tempo, como foi o volume diário e como estão os
+          status dos pedidos recentes.
+        </Typography.Paragraph>
+      </Card>
+      <Card className="app-card" variant="borderless" title="Controles da análise">
         <Space wrap>
           <Segmented
             value={period}
@@ -90,7 +103,7 @@ export function DashboardInsightsPage() {
 
       <Suspense
         fallback={
-          <Card className="app-card" bordered={false}>
+          <Card className="app-card" variant="borderless">
             <Skeleton active paragraph={{ rows: 10 }} />
           </Card>
         }

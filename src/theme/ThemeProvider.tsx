@@ -1,4 +1,4 @@
-import { ConfigProvider, theme as antdTheme } from 'antd'
+import { App, ConfigProvider, theme as antdTheme } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ThemeContext, type ThemeContextValue } from './ThemeContext'
 import {
@@ -125,7 +125,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={value}>
-      <ConfigProvider theme={themeConfig}>{children}</ConfigProvider>
+      <ConfigProvider theme={themeConfig}>
+        <App>{children}</App>
+      </ConfigProvider>
     </ThemeContext.Provider>
   )
 }
