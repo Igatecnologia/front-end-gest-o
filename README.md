@@ -86,7 +86,6 @@ npm run dev
 
 Deve aparecer:
 ```
-[IGA Backend] Usuario admin criado: admin@iga.com / admin123
 [IGA Backend] http://localhost:3000
 ```
 
@@ -117,34 +116,11 @@ Deve aparecer:
 ### Passo 4 — Acessar o sistema
 
 1. Abra o navegador em **http://localhost:5173**
-2. Faca login com:
+2. Faca login com as credenciais fornecidas pelo administrador
 
-| Campo | Valor |
-|-------|-------|
-| Email | `admin@iga.com` |
-| Senha | `admin123` |
+### Passo 5 — Configurar a fonte de dados (primeira vez)
 
-### Passo 5 — Configurar a fonte de dados SGBR (primeira vez)
-
-Apos o login, va em **Fontes de Dados** no menu e clique em **Nova conexao**:
-
-| Campo | Valor |
-|-------|-------|
-| Nome | SGBR BI |
-| Tipo | SGBR BI (IGA) |
-| Autenticacao | Token de acesso |
-| Endereco do servidor | `http://108.181.223.103:3007` |
-| Caminho dos dados | `/sgbrbi/vendas/analitico` |
-| Credenciais (token) | `iga:123456` |
-| Login dos usuarios | Ativo |
-| Caminho de login | `/sgbrbi/usuario/login` |
-| Campo de usuario | `login` |
-| Campo de senha | `senha` |
-| Envio da senha | SHA-256 |
-
-Clique em **Testar agora** — deve mostrar "1100 registros encontrados". Depois clique em **Salvar**.
-
-Pronto! O dashboard ja vai carregar com os dados reais.
+Apos o login, va em **Fontes de Dados** no menu e clique em **Nova conexao**. Preencha com os dados fornecidos pelo administrador do sistema (endereco do servidor, credenciais e endpoints). Clique em **Testar agora** para validar e depois **Salvar**.
 
 ---
 
@@ -159,7 +135,7 @@ cd back-end-gest-o && npm install && npm run dev
 git clone https://github.com/Igatecnologia/front-end-gest-o.git
 cd front-end-gest-o && npm install && npm run dev
 
-# Abrir http://localhost:5173 — login: admin@iga.com / admin123
+# Abrir http://localhost:5173
 ```
 
 ---
@@ -344,24 +320,7 @@ src/
 
 ## Credenciais
 
-### Sistema (login local)
-
-| Perfil | Email | Senha |
-|--------|-------|-------|
-| Administrador | `admin@iga.com` | `admin123` |
-
-Novos usuarios podem ser criados na pagina `/usuarios`.
-
-### API SGBR BI (configurado na fonte de dados)
-
-| Campo | Valor |
-|-------|-------|
-| Servidor | `http://108.181.223.103:3007` |
-| Login endpoint | `/sgbrbi/usuario/login` |
-| Data endpoint | `/sgbrbi/vendas/analitico` |
-| Campo usuario | `login` |
-| Campo senha | `senha` |
-| Modo senha | SHA-256 |
+As credenciais de acesso ao sistema e as configuracoes de fontes de dados externas sao fornecidas pelo administrador. Nao versione credenciais neste repositorio.
 
 ---
 
