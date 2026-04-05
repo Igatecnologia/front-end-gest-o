@@ -38,38 +38,129 @@ O backend atua como **proxy seguro**: autentica na API do cliente com credenciai
 
 ## Pre-requisitos
 
-- **Node.js** 20+ (recomendado LTS)
-- **npm** 10+
+- **Node.js** 20+ (recomendado LTS) — baixe em https://nodejs.org
+- **npm** 10+ (vem junto com o Node.js)
+- **Git** — baixe em https://git-scm.com
+
+Para verificar se ja tem instalado, abra o terminal e digite:
+```bash
+node --version    # deve mostrar v20 ou superior
+npm --version     # deve mostrar 10 ou superior
+git --version     # deve mostrar qualquer versao
+```
 
 ---
 
-## Instalacao e execucao
+## Guia de instalacao passo a passo
 
-### 1. Backend
+### Passo 1 — Clonar os dois repositorios
+
+Abra o terminal e escolha uma pasta para o projeto. Execute:
 
 ```bash
-cd back-end
+# Criar pasta do projeto
+mkdir iga-gestao
+cd iga-gestao
+
+# Clonar o backend
+git clone https://github.com/Igatecnologia/back-end-gest-o.git
+
+# Clonar o frontend
+git clone https://github.com/Igatecnologia/front-end-gest-o.git
+```
+
+Voce tera esta estrutura:
+```
+iga-gestao/
+  back-end-gest-o/    ← backend (API)
+  front-end-gest-o/   ← frontend (tela)
+```
+
+### Passo 2 — Instalar e iniciar o BACKEND (primeiro!)
+
+```bash
+cd back-end-gest-o
 npm install
 npm run dev
 ```
 
-O backend inicia em **http://localhost:3000**. Na primeira execucao, cria automaticamente o usuario admin:
+Deve aparecer:
+```
+[IGA Backend] Usuario admin criado: admin@iga.com / admin123
+[IGA Backend] http://localhost:3000
+```
+
+**Deixe este terminal aberto.** O backend precisa ficar rodando.
+
+Para confirmar que esta funcionando, abra outro terminal e execute:
+```bash
+curl http://localhost:3000/health
+```
+Deve retornar: `{"status":"ok",...}`
+
+### Passo 3 — Instalar e iniciar o FRONTEND
+
+Abra um **novo terminal** (sem fechar o do backend) e execute:
+
+```bash
+cd iga-gestao/front-end-gest-o
+npm install
+npm run dev
+```
+
+Deve aparecer:
+```
+  VITE v8.x.x  ready in xxx ms
+  ➜  Local:   http://localhost:5173/
+```
+
+### Passo 4 — Acessar o sistema
+
+1. Abra o navegador em **http://localhost:5173**
+2. Faca login com:
 
 | Campo | Valor |
 |-------|-------|
 | Email | `admin@iga.com` |
 | Senha | `admin123` |
 
-### 2. Frontend
+### Passo 5 — Configurar a fonte de dados SGBR (primeira vez)
+
+Apos o login, va em **Fontes de Dados** no menu e clique em **Nova conexao**:
+
+| Campo | Valor |
+|-------|-------|
+| Nome | SGBR BI |
+| Tipo | SGBR BI (IGA) |
+| Autenticacao | Token de acesso |
+| Endereco do servidor | `http://108.181.223.103:3007` |
+| Caminho dos dados | `/sgbrbi/vendas/analitico` |
+| Credenciais (token) | `iga:123456` |
+| Login dos usuarios | Ativo |
+| Caminho de login | `/sgbrbi/usuario/login` |
+| Campo de usuario | `login` |
+| Campo de senha | `senha` |
+| Envio da senha | SHA-256 |
+
+Clique em **Testar agora** — deve mostrar "1100 registros encontrados". Depois clique em **Salvar**.
+
+Pronto! O dashboard ja vai carregar com os dados reais.
+
+---
+
+## Resumo rapido (para quem ja sabe)
 
 ```bash
-cd front-end-gest-o
-npm install
-cp .env.example .env
-npm run dev
-```
+# Terminal 1 — Backend
+git clone https://github.com/Igatecnologia/back-end-gest-o.git
+cd back-end-gest-o && npm install && npm run dev
 
-Abra **http://localhost:5173** e faca login com as credenciais acima.
+# Terminal 2 — Frontend
+git clone https://github.com/Igatecnologia/front-end-gest-o.git
+cd front-end-gest-o && npm install && npm run dev
+
+# Abrir http://localhost:5173 — login: admin@iga.com / admin123
+```
 
 ---
 
