@@ -116,7 +116,7 @@ Deve aparecer:
 ### Passo 4 — Acessar o sistema
 
 1. Abra o navegador em **http://localhost:5173**
-2. Faca login com as credenciais fornecidas pelo administrador
+2. Faca login com `admin@iga.com` / `admin123`
 
 ### Passo 5 — Configurar a fonte de dados (primeira vez)
 
@@ -135,7 +135,7 @@ cd back-end-gest-o && npm install && npm run dev
 git clone https://github.com/Igatecnologia/front-end-gest-o.git
 cd front-end-gest-o && npm install && npm run dev
 
-# Abrir http://localhost:5173
+# Abrir http://localhost:5173 — login: admin@iga.com / admin123
 ```
 
 ---
@@ -318,9 +318,15 @@ src/
 
 ---
 
-## Credenciais
+## Credenciais do sistema
 
-As credenciais de acesso ao sistema e as configuracoes de fontes de dados externas sao fornecidas pelo administrador. Nao versione credenciais neste repositorio.
+| Perfil | Email | Senha |
+|--------|-------|-------|
+| Administrador | `admin@iga.com` | `admin123` |
+
+Novos usuarios podem ser criados na pagina `/usuarios`.
+
+As credenciais de fontes de dados externas (API SGBR) sao fornecidas pelo administrador e nao devem ser versionadas.
 
 ---
 
