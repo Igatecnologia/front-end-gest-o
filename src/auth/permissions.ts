@@ -8,6 +8,15 @@ export type Permission =
   | 'audit:export'
   | 'users:view'
   | 'users:write'
+  | 'producao:view'
+  | 'producao:write'
+  | 'fichatecnica:view'
+  | 'fichatecnica:write'
+  | 'comercial:view'
+  | 'comercial:write'
+  | 'estoque:view'
+  | 'estoque:write'
+  | 'alertas:view'
 
 export function hasPermission(
   session: AuthSession | null,

@@ -1,14 +1,16 @@
-import { Card, DatePicker, Segmented, Skeleton, Space, Tag, Typography } from 'antd'
+import { Alert, Card, DatePicker, Segmented, Skeleton, Space, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Suspense, lazy } from 'react'
 import { PageHeaderCard } from '../components/PageHeaderCard'
-import { DatePresetRange } from '../components/DatePresetRange'
-import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { ANALITICO_STALE_MS } from '../api/apiEnv'
+import { hasAnySources } from '../services/dataSourceService'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
+import { getErrorMessage } from '../api/httpError'
+
 const DashboardInsightsCharts = lazy(() =>
   import('./charts/DashboardInsightsCharts').then((m) => ({
     default: m.DashboardInsightsCharts,
@@ -18,46 +20,36 @@ const DashboardInsightsCharts = lazy(() =>
 export function DashboardInsightsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const period = (searchParams.get('p') ?? '30d') as '7d' | '30d' | '90d'
-  const start = searchParams.get('start') ?? ''
-  const end = searchParams.get('end') ?? ''
+  const startDate = searchParams.get('start') ?? ''
+  const endDate = searchParams.get('end') ?? ''
+
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.dashboard({ period }),
-    queryFn: () => getDashboardData({ delayMs: 700, period }),
-    staleTime: SGBR_BI_ACTIVE ? SGBR_ANALITICO_STALE_MS : undefined,
+    queryKey: queryKeys.dashboard({ period, start: startDate, end: endDate }),
+    queryFn: () => getDashboardData({ period, startDate: startDate || undefined, endDate: endDate || undefined }),
+    staleTime: hasAnySources() ? ANALITICO_STALE_MS : undefined,
   })
 
   const filteredData = useMemo(() => {
     const base = dashboardQuery.data
     if (!base) return null
-    if (!start && !end) return base
+    if (!startDate && !endDate) return base
     const latest = base.latest.filter((r) => {
-      const matchStart = !start || dayjs(r.data).isSame(start, 'day') || dayjs(r.data).isAfter(start, 'day')
-      const matchEnd = !end || dayjs(r.data).isSame(end, 'day') || dayjs(r.data).isBefore(end, 'day')
+      const matchStart = !startDate || dayjs(r.data).isSame(startDate, 'day') || dayjs(r.data).isAfter(startDate, 'day')
+      const matchEnd = !endDate || dayjs(r.data).isSame(endDate, 'day') || dayjs(r.data).isBefore(endDate, 'day')
       return matchStart && matchEnd
     })
     return { ...base, latest }
-  }, [dashboardQuery.data, start, end])
-  if (!filteredData) return null
+  }, [dashboardQuery.data, startDate, endDate])
 
   return (
-    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
-        title="Análises BI"
-        subtitle={
-          SGBR_BI_ACTIVE
-            ? 'Cada gráfico explica um recorte das suas vendas (leia o texto cinza embaixo do título). Altere o período para recarregar da API.'
-            : 'Visualizações com recorte temporal; com API de demonstração há blocos extras claramente marcados como exemplo.'
-        }
+        title="Analises BI"
+        subtitle="Graficos analiticos com dados reais de vendas. Altere o periodo para explorar."
       />
-      <Card size="small" variant="borderless" style={{ background: 'rgba(22, 119, 255, 0.06)' }}>
-        <Typography.Paragraph style={{ margin: 0, fontSize: 14 }}>
-          <strong>Dica:</strong> comece pelo resumo no topo (&quot;Como ler esta tela&quot;) e pelos três gráficos da
-          primeira fileira — eles respondem: quanto faturou ao longo do tempo, como foi o volume diário e como estão os
-          status dos pedidos recentes.
-        </Typography.Paragraph>
-      </Card>
-      <Card className="app-card" variant="borderless" title="Controles da análise">
-        <Space wrap>
+
+      <Card className="app-card no-hover" variant="borderless" title="Filtros">
+        <Space wrap size={12}>
           <Segmented
             value={period}
             options={[
@@ -69,11 +61,16 @@ export function DashboardInsightsPage() {
               setSearchParams((prev) => {
                 const p = new URLSearchParams(prev)
                 p.set('p', String(v))
+                p.delete('start')
+                p.delete('end')
                 return p
               })
             }}
           />
           <DatePicker.RangePicker
+            format="DD/MM/YYYY"
+            placeholder={['Data inicial', 'Data final']}
+            value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}
             onChange={(vals) => {
               setSearchParams((prev) => {
                 const p = new URLSearchParams(prev)
@@ -86,30 +83,38 @@ export function DashboardInsightsPage() {
               })
             }}
           />
-          <DatePresetRange
-            storageKey="date-preset:dashboard-insights"
-            onApply={(from, to) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                p.set('start', from)
-                p.set('end', to)
-                return p
-              })
-            }}
-          />
-          <Tag color="blue">Registros no recorte: {filteredData.latest.length}</Tag>
+          {filteredData && (
+            <Tag color="blue">{filteredData.latest.length} registros</Tag>
+          )}
         </Space>
       </Card>
 
-      <Suspense
-        fallback={
-          <Card className="app-card" variant="borderless">
-            <Skeleton active paragraph={{ rows: 10 }} />
-          </Card>
-        }
-      >
-        <DashboardInsightsCharts data={filteredData} />
-      </Suspense>
+      {dashboardQuery.isLoading && (
+        <Card className="app-card" variant="borderless">
+          <Skeleton active paragraph={{ rows: 12 }} />
+        </Card>
+      )}
+
+      {dashboardQuery.isError && (
+        <Alert
+          type="error"
+          showIcon
+          message="Nao foi possivel carregar"
+          description={getErrorMessage(dashboardQuery.error, 'Erro ao buscar dados.')}
+        />
+      )}
+
+      {filteredData && (
+        <Suspense
+          fallback={
+            <Card className="app-card" variant="borderless">
+              <Skeleton active paragraph={{ rows: 10 }} />
+            </Card>
+          }
+        >
+          <DashboardInsightsCharts data={filteredData} />
+        </Suspense>
+      )}
     </Space>
   )
 }

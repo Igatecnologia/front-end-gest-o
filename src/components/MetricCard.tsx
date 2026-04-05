@@ -1,41 +1,66 @@
 import { ArrowDownOutlined, ArrowUpOutlined, MinusOutlined } from '@ant-design/icons'
-import { Card, Space, Tag, Typography } from 'antd'
+import { Skeleton, Tag, Tooltip } from 'antd'
+import { deltaColor } from '../theme/colors'
 
 export function MetricCard({
   title,
   value,
   previousValue,
   deltaPct,
+  hero,
+  loading,
+  description,
+  accentColor,
 }: {
   title: string
   value: string | number
   previousValue?: string | number
   deltaPct?: number
+  hero?: boolean
+  loading?: boolean
+  description?: string
+  accentColor?: string
 }) {
   const trend =
     typeof deltaPct !== 'number' ? null : deltaPct > 0 ? 'up' : deltaPct < 0 ? 'down' : 'flat'
-  const trendColor = trend === 'up' ? 'green' : trend === 'down' ? 'red' : 'default'
+  const trendColorValue = trend === 'up' ? deltaColor(1) : trend === 'down' ? deltaColor(-1) : deltaColor(0)
+  const accent = accentColor ?? (trend ? trendColorValue : 'var(--qc-primary)')
 
-  return (
-    <Card className="app-card" variant="borderless">
-      <Space orientation="vertical" size={4} style={{ width: '100%' }}>
-        <Typography.Text type="secondary">{title}</Typography.Text>
-        <Typography.Title level={4} style={{ margin: 0 }}>
+  if (loading) {
+    return (
+      <div className={`metric-card${hero ? ' metric-card--hero' : ''}`}>
+        <div className="metric-card__accent" style={{ background: 'var(--qc-border)' }} />
+        <div className="metric-card__content">
+          <Skeleton active paragraph={{ rows: 1 }} title={{ width: '60%' }} />
+        </div>
+      </div>
+    )
+  }
+
+  const card = (
+    <div className={`metric-card${hero ? ' metric-card--hero' : ''}`}>
+      <div className="metric-card__accent" style={{ background: accent }} />
+      <div className="metric-card__content">
+        <span className="metric-card__title">{title}</span>
+        <span className={`metric-card__value${hero ? ' metric-card__value--hero' : ''}`}>
           {value}
-        </Typography.Title>
-        {previousValue !== undefined ? (
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Período anterior: {previousValue}
-          </Typography.Text>
-        ) : null}
-        {typeof deltaPct === 'number' ? (
-          <Tag color={trendColor}>
+        </span>
+        {previousValue !== undefined && (
+          <span className="metric-card__prev">Anterior: {previousValue}</span>
+        )}
+        {typeof deltaPct === 'number' && (
+          <Tag
+            color={trend === 'up' ? 'green' : trend === 'down' ? 'red' : 'default'}
+            style={{ marginTop: 6, fontVariantNumeric: 'tabular-nums' }}
+          >
             {trend === 'up' ? <ArrowUpOutlined /> : trend === 'down' ? <ArrowDownOutlined /> : <MinusOutlined />}{' '}
             {deltaPct > 0 ? '+' : ''}
             {deltaPct.toFixed(1)}%
           </Tag>
-        ) : null}
-      </Space>
-    </Card>
+        )}
+      </div>
+    </div>
   )
+
+  return description ? <Tooltip title={description}>{card}</Tooltip> : card
 }

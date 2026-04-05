@@ -21,7 +21,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { DevErrorDetail } from '../components/DevErrorDetail'
 import { VendaAnaliticoDetailDrawer } from '../components/VendaAnaliticoDetailDrawer'
-import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { ANALITICO_STALE_MS } from '../api/apiEnv'
+import { hasAnySources } from '../services/dataSourceService'
 import { getErrorMessage } from '../api/httpError'
 import type { VendaAnaliticaRow } from '../api/schemas'
 import { PageHeaderCard } from '../components/PageHeaderCard'
@@ -67,14 +68,14 @@ export function VendasAnaliticoPage() {
   const end = searchParams.get('end') ?? defEnd
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
 
-  const biConfigured = SGBR_BI_ACTIVE
+  const biConfigured = hasAnySources()
   const [detailRow, setDetailRow] = useState<VendaAnaliticaRow | null>(null)
 
   const query = useQuery({
     queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end }),
     queryFn: () => getVendasAnalitico({ dtDe: start, dtAte: end }),
     enabled: biConfigured,
-    staleTime: SGBR_ANALITICO_STALE_MS,
+    staleTime: ANALITICO_STALE_MS,
   })
 
   const filtered = useMemo(() => {
@@ -304,7 +305,9 @@ export function VendasAnaliticoPage() {
           <Col xs={24} md={14}>
             <DatePicker.RangePicker
               style={{ width: '100%' }}
+              format="DD/MM/YYYY"
               value={[dayjs(start), dayjs(end)]}
+              placeholder={['Data inicial', 'Data final']}
               onChange={(vals) => {
                 setSearchParams((prev) => {
                   const p = new URLSearchParams(prev)

@@ -35,20 +35,22 @@ import { useSearchParams } from 'react-router-dom'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { Bar, BarChart, CartesianGrid, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
+import { gridProps, xAxisProps, yAxisProps, CHART_COLORS } from '../components/charts/ChartDefaults'
 import * as XLSX from 'xlsx'
 import { ChartShell } from '../components/ChartShell'
 import { DevErrorDetail } from '../components/DevErrorDetail'
-import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { ANALITICO_STALE_MS } from '../api/apiEnv'
+import { hasAnySources } from '../services/dataSourceService'
 import { PageHeaderCard } from '../components/PageHeaderCard'
-import { DatePresetRange } from '../components/DatePresetRange'
+
 import { MetricCard } from '../components/MetricCard'
 import { useAuth } from '../auth/AuthContext'
 import { hasPermission } from '../auth/permissions'
 import { getErrorMessage } from '../api/httpError'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useSavedViews } from '../hooks/useSavedViews'
-import type { ReportItem } from '../mocks/reports'
+import type { ReportItem } from '../types/models'
 import { queryKeys } from '../query/queryKeys'
 import {
   createReportSchedule,
@@ -99,11 +101,11 @@ export function ReportsPage() {
   const sortBy = (searchParams.get('sortBy') ?? 'atualizadoEm') as 'atualizadoEm' | 'nome' | 'tipo'
   const sortOrder = (searchParams.get('sortOrder') ?? 'desc') as 'asc' | 'desc'
   const shifted = shiftRange(startDate, endDate)
-  const reportsStaleMs = SGBR_BI_ACTIVE ? SGBR_ANALITICO_STALE_MS : 30_000
+  const reportsStaleMs = hasAnySources() ? ANALITICO_STALE_MS : 30_000
 
   const makeExportBasename = () => {
     const tail = `${startDate || 'ini'}_${endDate || 'fim'}_${dayjs().format('YYYY-MM-DD_HHmm')}`
-    return SGBR_BI_ACTIVE ? `relatorios_sgbr_${tail}` : `relatorios_${tail}`
+    return hasAnySources() ? `relatorios_sgbr_${tail}` : `relatorios_${tail}`
   }
 
   const reportsQuery = useQuery({
@@ -204,8 +206,7 @@ export function ReportsPage() {
 
   const columns: ColumnsType<ReportItem> = useMemo(
     () => [
-      { title: 'ID', dataIndex: 'id', key: 'id', width: 120 },
-      { title: 'Nome', dataIndex: 'nome', key: 'nome', sorter: true },
+      { title: 'Nome', dataIndex: 'nome', key: 'nome', sorter: true, ellipsis: true },
       {
         title: 'Categoria',
         dataIndex: 'categoria',
@@ -223,26 +224,37 @@ export function ReportsPage() {
         sorter: true,
       },
       {
-        title: 'Principal',
+        title: 'Valor',
         dataIndex: 'valorPrincipal',
         key: 'valorPrincipal',
-        width: 130,
+        width: 140,
         align: 'right',
-        render: (v: number) => v.toLocaleString('pt-BR'),
+        render: (v: number) => (
+          <Typography.Text strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </Typography.Text>
+        ),
       },
       {
-        title: 'Secundário',
+        title: 'Qtd / Ref.',
         dataIndex: 'valorSecundario',
         key: 'valorSecundario',
-        width: 130,
+        width: 100,
         align: 'right',
-        render: (v: number) => v.toLocaleString('pt-BR'),
+        render: (v: number) => (
+          <Typography.Text type="secondary" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {v.toLocaleString('pt-BR')}
+          </Typography.Text>
+        ),
       },
       {
         title: 'Segmento',
         dataIndex: 'segmento',
         key: 'segmento',
-        width: 120,
+        width: 110,
+        render: (v: string) => (
+          <Tag color={v === 'Enterprise' ? 'blue' : v === 'MidMarket' ? 'green' : 'default'}>{v}</Tag>
+        ),
       },
       {
         title: 'Atualizado em',
@@ -345,32 +357,103 @@ export function ReportsPage() {
     XLSX.writeFile(wb, `${makeExportBasename()}.xlsx`)
   }
 
-  function downloadPdf(rows: ReportItem[]) {
+  function downloadPdf(exportRows: ReportItem[]) {
     const doc = new jsPDF({ orientation: 'landscape' })
-    doc.text('Relatório Executivo', 14, 12)
+    const pageW = doc.internal.pageSize.getWidth()
+
+    // Cabecalho
+    doc.setFillColor(15, 23, 42) // slate-900
+    doc.rect(0, 0, pageW, 28, 'F')
+    doc.setTextColor(248, 250, 252)
+    doc.setFontSize(18)
+    doc.setFont('helvetica', 'bold')
+    doc.text('IGA — Relatorio Executivo', 14, 14)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Gerado em ${dayjs().format('DD/MM/YYYY [as] HH:mm')}`, 14, 22)
+
+    const periodo = startDate && endDate
+      ? `${dayjs(startDate).format('DD/MM/YYYY')} a ${dayjs(endDate).format('DD/MM/YYYY')}`
+      : 'Ultimos 90 dias'
+    doc.text(`Periodo: ${periodo}`, pageW - 14, 22, { align: 'right' })
+
+    // KPIs resumidos
+    doc.setTextColor(15, 23, 42)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    const kpiY = 36
+    const kpiW = (pageW - 28 - 30) / 4
+
+    const kpis = [
+      { label: 'REGISTROS', value: String(exportRows.length) },
+      { label: 'FATURAMENTO', value: reportMetrics.totalPrincipal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
+      { label: 'TICKET MEDIO', value: reportMetrics.avgPrincipal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }) },
+      { label: 'CATEGORIAS', value: [...new Set(exportRows.map(r => r.categoria))].join(', ') || '—' },
+    ]
+
+    kpis.forEach((kpi, i) => {
+      const x = 14 + i * (kpiW + 10)
+      doc.setFillColor(241, 245, 249)
+      doc.roundedRect(x, kpiY - 4, kpiW, 16, 3, 3, 'F')
+      doc.setFontSize(7)
+      doc.setTextColor(100, 116, 139)
+      doc.text(kpi.label, x + 6, kpiY + 2)
+      doc.setFontSize(11)
+      doc.setTextColor(15, 23, 42)
+      doc.setFont('helvetica', 'bold')
+      doc.text(kpi.value, x + 6, kpiY + 9)
+      doc.setFont('helvetica', 'normal')
+    })
+
+    // Linha separadora
+    doc.setDrawColor(226, 232, 240)
+    doc.line(14, kpiY + 16, pageW - 14, kpiY + 16)
+
+    // Tabela
     autoTable(doc, {
-      startY: 18,
-      head: [[
-        'ID',
-        'Nome',
-        'Categoria',
-        'Tipo',
-        'Principal',
-        'Secundário',
-        'Segmento',
-        'Atualizado em',
-      ]],
-      body: rows.map((r) => [
-        r.id,
+      startY: kpiY + 20,
+      head: [['Nome', 'Categoria', 'Tipo', 'Valor (R$)', 'Ref. (R$)', 'Segmento', 'Data']],
+      body: exportRows.map((r) => [
         r.nome,
         r.categoria,
         r.tipo,
-        String(r.valorPrincipal),
-        String(r.valorSecundario),
+        r.valorPrincipal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        r.valorSecundario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
         r.segmento,
         dayjs(r.atualizadoEm).format('DD/MM/YYYY'),
       ]),
+      styles: {
+        fontSize: 8,
+        cellPadding: 4,
+        lineColor: [226, 232, 240],
+        lineWidth: 0.3,
+      },
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [248, 250, 252],
+        fontStyle: 'bold',
+        fontSize: 8,
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      columnStyles: {
+        3: { halign: 'right', fontStyle: 'bold' },
+        4: { halign: 'right' },
+      },
     })
+
+    // Rodape
+    const pageCount = doc.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      const pageH = doc.internal.pageSize.getHeight()
+      doc.setFontSize(7)
+      doc.setTextColor(148, 163, 184)
+      doc.text('IGA Gestao — Documento confidencial', 14, pageH - 6)
+      doc.text(`Pagina ${i} de ${pageCount}`, pageW - 14, pageH - 6, { align: 'right' })
+    }
+
     doc.save(`${makeExportBasename()}_executivo.pdf`)
   }
 
@@ -413,12 +496,8 @@ export function ReportsPage() {
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
-        title="Relatórios"
-        subtitle={
-          SGBR_BI_ACTIVE
-            ? 'Indicadores sintéticos (receita, ticket, tops) calculados sobre vendas analítico no intervalo dos filtros.'
-            : 'Relatórios empresariais com filtros avançados, exportações e agendamento.'
-        }
+        title="Relatorios"
+        subtitle="Indicadores e dados do periodo selecionado."
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={() => reportsQuery.refetch()}>
@@ -453,265 +532,123 @@ export function ReportsPage() {
             >
               <Button icon={<DownloadOutlined />}>Exportar</Button>
             </Dropdown>
-            <Button icon={<ScheduleOutlined />} onClick={() => setScheduleOpen(true)}>
-              Agendar
-            </Button>
-            <Button
-              onClick={() => {
-                const name = window.prompt('Nome da view:')
-                if (!name) return
-                saved.create(name, searchParams)
-              }}
-            >
-              Salvar view
-            </Button>
-            <Button icon={<CalendarOutlined />} onClick={saveCurrentUserFilter}>
-              Salvar filtro usuário
-            </Button>
           </Space>
         }
       />
 
-      <Card className="app-card" variant="borderless" title="Filtros e ações rápidas">
-        <Space wrap>
-          <Select
-            style={{ width: 220 }}
-            placeholder="Views…"
-            options={saved.views.map((v) => ({ value: v.id, label: v.name }))}
-            onChange={(id) => {
-              const view = saved.views.find((v) => v.id === id)
-              if (!view) return
-              setSearchParams(new URLSearchParams(view.params))
-            }}
-          />
-          <Input.Search
-            allowClear
-            style={{ width: 280 }}
-            placeholder="Buscar por ID ou nome"
-            value={q}
-            onChange={(e) => {
-              const next = e.target.value
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                if (next) p.set('q', next)
-                else p.delete('q')
-                return setPageToFirst(p)
-              })
-            }}
-          />
-          <Select
-            style={{ width: 220 }}
-            value={categoria}
-            onChange={(next) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                if (next === 'all') p.delete('cat')
-                else p.set('cat', next)
-                return setPageToFirst(p)
-              })
-            }}
-            options={[
-              { value: 'all', label: 'Todas as categorias' },
-              { value: 'Vendas', label: 'Vendas' },
-              { value: 'Usuários', label: 'Usuários' },
-              { value: 'Financeiro', label: 'Financeiro' },
-            ]}
-          />
-          <Select
-            style={{ width: 220 }}
-            value={tipo}
-            onChange={(next) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                if (next === 'all') p.delete('type')
-                else p.set('type', next)
-                return setPageToFirst(p)
-              })
-            }}
-            options={[
-              { value: 'all', label: 'Todos os tipos' },
-              ...REPORT_TYPE_OPTIONS.map((x) => ({
-                value: x,
-                label: x === 'TopN' ? 'Top N' : x,
-              })),
-            ]}
-          />
-          <DatePicker.RangePicker
-            onChange={(vals) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                const [start, end] = vals ?? []
-                if (start) p.set('start', start.format('YYYY-MM-DD'))
-                else p.delete('start')
-                if (end) p.set('end', end.format('YYYY-MM-DD'))
-                else p.delete('end')
-                return setPageToFirst(p)
-              })
-            }}
-          />
-          <DatePresetRange
-            storageKey="date-preset:reports"
-            onApply={(start, end) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                p.set('start', start)
-                p.set('end', end)
-                return setPageToFirst(p)
-              })
-            }}
-          />
-          <Select
-            style={{ width: 170 }}
-            value={logic}
-            onChange={(next) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                p.set('logic', next)
-                return setPageToFirst(p)
-              })
-            }}
-            options={[
-              { value: 'and', label: 'Combinação AND' },
-              { value: 'or', label: 'Combinação OR' },
-            ]}
-          />
-          <Button
-            icon={<FileImageOutlined />}
-            disabled={!rows.length}
-            onClick={exportChartAsPng}
-          >
-            PNG
-          </Button>
-          <Button disabled={!rows.length} onClick={exportChartAsSvg}>
-            SVG
-          </Button>
-          <Button
-            onClick={() => {
-              void navigator.clipboard?.writeText(window.location.href)
-            }}
-          >
-            Copiar link
-          </Button>
-        </Space>
+      <Card className="app-card no-hover" variant="borderless" title="Filtros">
+        <Row gutter={[12, 12]}>
+          <Col xs={24} md={8}>
+            <Input.Search
+              allowClear
+              placeholder="Buscar por nome ou ID"
+              value={q}
+              onChange={(e) => {
+                const next = e.target.value
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  if (next) p.set('q', next)
+                  else p.delete('q')
+                  return setPageToFirst(p)
+                })
+              }}
+            />
+          </Col>
+          <Col xs={12} md={4}>
+            <Select
+              style={{ width: '100%' }}
+              value={categoria}
+              onChange={(next) => {
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  if (next === 'all') p.delete('cat')
+                  else p.set('cat', next)
+                  return setPageToFirst(p)
+                })
+              }}
+              options={[
+                { value: 'all', label: 'Todas categorias' },
+                { value: 'Vendas', label: 'Vendas' },
+                { value: 'Usuários', label: 'Usuarios' },
+                { value: 'Financeiro', label: 'Financeiro' },
+              ]}
+            />
+          </Col>
+          <Col xs={12} md={4}>
+            <Select
+              style={{ width: '100%' }}
+              value={tipo}
+              onChange={(next) => {
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  if (next === 'all') p.delete('type')
+                  else p.set('type', next)
+                  return setPageToFirst(p)
+                })
+              }}
+              options={[
+                { value: 'all', label: 'Todos os tipos' },
+                ...REPORT_TYPE_OPTIONS.map((x) => ({ value: x, label: x === 'TopN' ? 'Top N' : x })),
+              ]}
+            />
+          </Col>
+          <Col xs={24} md={8}>
+            <DatePicker.RangePicker
+              style={{ width: '100%' }}
+              format="DD/MM/YYYY"
+              placeholder={['Data inicial', 'Data final']}
+              onChange={(vals) => {
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  const [start, end] = vals ?? []
+                  if (start) p.set('start', start.format('YYYY-MM-DD'))
+                  else p.delete('start')
+                  if (end) p.set('end', end.format('YYYY-MM-DD'))
+                  else p.delete('end')
+                  return setPageToFirst(p)
+                })
+              }}
+            />
+          </Col>
+        </Row>
       </Card>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
+      <Row gutter={[12, 12]}>
+        <Col xs={12} sm={6}>
           <MetricCard
-            title="Registros no período"
+            title="Registros"
             value={total}
+            accentColor={CHART_COLORS[0]}
             previousValue={shifted ? previousMetrics.count : undefined}
             deltaPct={shifted ? pctDelta(total, previousMetrics.count) : undefined}
           />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={6}>
           <MetricCard
-            title="Volume principal"
-            value={reportMetrics.totalPrincipal.toLocaleString('pt-BR')}
-            previousValue={
-              shifted ? previousMetrics.totalPrincipal.toLocaleString('pt-BR') : undefined
-            }
-            deltaPct={
-              shifted
-                ? pctDelta(reportMetrics.totalPrincipal, previousMetrics.totalPrincipal)
-                : undefined
-            }
+            title="Faturamento"
+            value={reportMetrics.totalPrincipal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            accentColor={CHART_COLORS[1]}
+            previousValue={shifted ? previousMetrics.totalPrincipal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : undefined}
+            deltaPct={shifted ? pctDelta(reportMetrics.totalPrincipal, previousMetrics.totalPrincipal) : undefined}
           />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={6}>
           <MetricCard
-            title="Média principal"
-            value={reportMetrics.avgPrincipal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
-            previousValue={
-              shifted
-                ? previousMetrics.avgPrincipal.toLocaleString('pt-BR', {
-                    maximumFractionDigits: 2,
-                  })
-                : undefined
-            }
-            deltaPct={
-              shifted ? pctDelta(reportMetrics.avgPrincipal, previousMetrics.avgPrincipal) : undefined
-            }
+            title="Ticket medio"
+            value={reportMetrics.avgPrincipal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 })}
+            accentColor={CHART_COLORS[2]}
+            previousValue={shifted ? previousMetrics.avgPrincipal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 }) : undefined}
+            deltaPct={shifted ? pctDelta(reportMetrics.avgPrincipal, previousMetrics.avgPrincipal) : undefined}
           />
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={12} sm={6}>
           <MetricCard
-            title="Última atualização"
-            value={reportMetrics.latestDate ? dayjs(reportMetrics.latestDate).format('DD/MM/YYYY') : '-'}
-            previousValue={
-              shifted && previousMetrics.latestDate
-                ? dayjs(previousMetrics.latestDate).format('DD/MM/YYYY')
-                : undefined
-            }
+            title="Atualizado em"
+            value={reportMetrics.latestDate ? dayjs(reportMetrics.latestDate).format('DD/MM/YYYY') : '—'}
+            accentColor={CHART_COLORS[3]}
           />
         </Col>
       </Row>
-
-      {!!saved.views.length && (
-        <Card className="app-card" variant="borderless" title="Gerenciar views salvas">
-          <Space orientation="vertical" style={{ width: '100%' }} size={8}>
-            {saved.views.map((v) => (
-              <Space
-                key={v.id}
-                style={{ width: '100%', justifyContent: 'space-between' }}
-                wrap
-              >
-                <div>
-                  <strong>{v.name}</strong>
-                  <div style={{ opacity: 0.7, fontSize: 12 }}>
-                    {dayjs(v.createdAt).format('DD/MM/YYYY HH:mm')}
-                  </div>
-                </div>
-                <Space>
-                  <Button
-                    onClick={() => {
-                      setSearchParams(new URLSearchParams(v.params))
-                    }}
-                  >
-                    Aplicar
-                  </Button>
-                  <Button danger onClick={() => saved.remove(v.id)}>
-                    Excluir
-                  </Button>
-                </Space>
-              </Space>
-            ))}
-          </Space>
-        </Card>
-      )}
-
-      {!!userFilters.length && (
-        <Card className="app-card" variant="borderless" title="Filtros salvos por usuário">
-          <Space orientation="vertical" style={{ width: '100%' }} size={8}>
-            {userFilters.map((f) => (
-              <Space key={f.id} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                <div>
-                  <strong>{f.name}</strong>
-                  <div style={{ opacity: 0.7, fontSize: 12 }}>
-                    {dayjs(f.createdAt).format('DD/MM/YYYY HH:mm')}
-                  </div>
-                </div>
-                <Space>
-                  <Button onClick={() => setSearchParams(new URLSearchParams(f.params))}>
-                    Aplicar
-                  </Button>
-                  <Popconfirm
-                    title="Excluir filtro salvo?"
-                    okText="Excluir"
-                    cancelText="Cancelar"
-                    onConfirm={() => {
-                      deleteUserSavedFilter(f.id)
-                      setFiltersVersion((x) => x + 1)
-                    }}
-                  >
-                    <Button danger>Excluir</Button>
-                  </Popconfirm>
-                </Space>
-              </Space>
-            ))}
-          </Space>
-        </Card>
-      )}
 
       {(reportsQuery.isLoading || reportsQuery.isFetching) && (
         <Card>
@@ -747,34 +684,68 @@ export function ReportsPage() {
       )}
 
       {!!rows.length && (
-        <Card className="app-card quantum-table" variant="borderless" title="Lista de relatórios">
-          <div ref={chartRef} style={{ width: '100%', height: 260, marginBottom: 16 }}>
-            <Typography.Title level={5} style={{ marginTop: 0 }}>
-              Resumo visual por tipo
-            </Typography.Title>
-            <ChartShell height={210}>
-              <BarChart data={byType}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="tipo" />
-                <YAxis allowDecimals={false} />
-                <RechartsTooltip />
-                <Bar dataKey="total" fill="rgba(79, 70, 229, 0.75)" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ChartShell>
-          </div>
-          <Table
-            rowKey="id"
-            columns={columns}
-            dataSource={rows}
-            onChange={(pagination, _f, sorter) => onTableChange(pagination, sorter)}
-            pagination={{
-              current: page,
-              pageSize,
-              total,
-              showSizeChanger: true,
-            }}
-          />
-        </Card>
+        <>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={12}>
+              <Card className="app-card" variant="borderless" title="Por tipo de relatorio">
+                <ChartShell height={220}>
+                  <BarChart data={byType.filter(t => t.total > 0)} layout="vertical" margin={{ left: 0, right: 16 }}>
+                    <CartesianGrid {...gridProps} horizontal={false} vertical />
+                    <XAxis type="number" {...xAxisProps} allowDecimals={false} />
+                    <YAxis type="category" dataKey="tipo" {...yAxisProps} width={100} tick={{ fontSize: 11 }} />
+                    <Bar dataKey="total" name="Quantidade" radius={[0, 6, 6, 0]}>
+                      {byType.filter(t => t.total > 0).map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} fillOpacity={0.8} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ChartShell>
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card className="app-card" variant="borderless" title="Por categoria">
+                <ChartShell height={220}>
+                  <BarChart
+                    data={['Vendas', 'Usuários', 'Financeiro'].map((cat, i) => ({
+                      categoria: cat,
+                      total: rows.filter(r => r.categoria === cat).length,
+                      valor: rows.filter(r => r.categoria === cat).reduce((s, r) => s + r.valorPrincipal, 0),
+                    })).filter(c => c.total > 0)}
+                    margin={{ left: 0, right: 8 }}
+                  >
+                    <CartesianGrid {...gridProps} />
+                    <XAxis dataKey="categoria" {...xAxisProps} />
+                    <YAxis {...yAxisProps} allowDecimals={false} />
+                    <Bar dataKey="total" name="Registros" radius={[6, 6, 0, 0]}>
+                      {['Vendas', 'Usuários', 'Financeiro'].map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i]} fillOpacity={0.75} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ChartShell>
+              </Card>
+            </Col>
+          </Row>
+
+          <Card className="app-card quantum-table" variant="borderless" title="Detalhamento">
+            <div ref={chartRef}>
+              <Table
+                rowKey="id"
+                columns={columns}
+                dataSource={rows}
+                onChange={(pagination, _f, sorter) => onTableChange(pagination, sorter)}
+                pagination={{
+                  current: page,
+                  pageSize,
+                  total,
+                  showSizeChanger: true,
+                  showTotal: (t) => `${t} registros`,
+                }}
+                size="middle"
+              />
+            </div>
+          </Card>
+        </>
       )}
 
       <Modal

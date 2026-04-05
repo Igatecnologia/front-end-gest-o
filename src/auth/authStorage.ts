@@ -1,3 +1,5 @@
+import { tenantStorage } from '../tenant/tenantStorage'
+
 export type AuthSession = {
   token: string
   user: {
@@ -9,11 +11,11 @@ export type AuthSession = {
   permissions: string[]
 }
 
-const AUTH_STORAGE_KEY = 'app.auth.session'
+const AUTH_KEY = 'auth.session'
 
 export function getStoredSession(): AuthSession | null {
   try {
-    const raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
+    const raw = tenantStorage.getItem(AUTH_KEY)
     if (!raw) return null
     return JSON.parse(raw) as AuthSession
   } catch {
@@ -23,9 +25,8 @@ export function getStoredSession(): AuthSession | null {
 
 export function setStoredSession(session: AuthSession | null) {
   if (!session) {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
+    tenantStorage.removeItem(AUTH_KEY)
     return
   }
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
+  tenantStorage.setItem(AUTH_KEY, JSON.stringify(session))
 }
-

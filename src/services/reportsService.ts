@@ -1,6 +1,6 @@
-import type { ReportItem } from '../mocks/reports'
+import type { ReportItem } from '../types/models'
 import dayjs from 'dayjs'
-import { SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { hasAnySources } from '../services/dataSourceService'
 import { nowBr } from '../utils/dayjsBr'
 import { http } from './http'
 import { getValidated } from '../api/validatedHttp'
@@ -9,8 +9,6 @@ import { getVendasAnalitico } from './vendasAnaliticoService'
 import { buildReportItemsFromVendasRows } from '../utils/vendasAnaliticoAggregates'
 
 type GetReportsOptions = {
-  delayMs?: number
-  failRate?: number // 0..1
   q?: string
   cat?: 'all' | ReportItem['categoria']
   type?: 'all' | ReportItem['tipo']
@@ -69,14 +67,10 @@ async function getReportsFromSgbrBi(
 export async function getReports(
   options: GetReportsOptions = {},
 ): Promise<{ items: ReportItem[]; total: number; page: number; pageSize: number }> {
-  const { delayMs = 500, failRate = 0, ...params } = options
-  if (failRate > 0 && Math.random() < failRate) {
-    throw new Error('Falha ao carregar relatórios.')
-  }
-  if (SGBR_BI_ACTIVE) {
-    return getReportsFromSgbrBi(params)
+  if (hasAnySources()) {
+    return getReportsFromSgbrBi(options)
   }
   return getValidated(http, '/reports', reportsPagedResponseSchema, {
-    params: { delayMs, ...params },
+    params: { ...options },
   })
 }

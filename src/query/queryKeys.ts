@@ -1,5 +1,5 @@
 export const queryKeys = {
-  dashboard: (params: { period: string; pollMs?: string }) => ['dashboard', params] as const,
+  dashboard: (params: { period: string; pollMs?: string; start?: string; end?: string }) => ['dashboard', params] as const,
   finance: (range?: { dtDe: string; dtAte: string }) =>
     range ? (['finance', 'sgbr', range.dtDe, range.dtAte] as const) : (['finance'] as const),
   reports: (params: {
@@ -20,5 +20,27 @@ export const queryKeys = {
     ['users', params] as const,
   vendasAnalitico: (params: { dtDe: string; dtAte: string }) =>
     ['vendasAnalitico', params] as const,
+
+  conciliacao: () => ['conciliacao'] as const,
+  contasPagar: () => ['contasPagar'] as const,
+  contasReceber: () => ['contasReceber'] as const,
+  estoqueMateriaPrima: () => ['estoqueMateriaPrima'] as const,
+  estoqueEspuma: () => ['estoqueEspuma'] as const,
+  vendasEspuma: () => ['vendasEspuma'] as const,
+
+  /* ── ERP Sprint 8 ── */
+  comprasMateriaPrima: () => ['comprasMateriaPrima'] as const,
+  lotesProducao: () => ['lotesProducao'] as const,
+  fichasTecnicas: () => ['fichasTecnicas'] as const,
+  pedidos: () => ['pedidos'] as const,
+  ordensProducao: () => ['ordensProducao'] as const,
+  faturamentos: () => ['faturamentos'] as const,
+  movimentosEstoque: () => ['movimentosEstoque'] as const,
+  custoRealProdutos: () => ['custoRealProdutos'] as const,
+  alertasOperacionais: () => ['alertasOperacionais'] as const,
+
+  /* ── Fontes de Dados ── */
+  dataSources: () => ['dataSources'] as const,
+  dataSource: (id: string) => ['dataSources', id] as const,
 } as const
 

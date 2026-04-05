@@ -1,12 +1,18 @@
-export type ReportSchedule = {
-  id: string
-  reportId: string
-  reportName: string
-  frequency: 'daily' | 'weekly' | 'monthly'
-  format: 'csv' | 'xlsx' | 'pdf'
-  nextRunAt: string
-  createdAt: string
-}
+import { z } from 'zod'
+
+const reportScheduleSchema = z.object({
+  id: z.string(),
+  reportId: z.string(),
+  reportName: z.string(),
+  frequency: z.enum(['daily', 'weekly', 'monthly']),
+  format: z.enum(['csv', 'xlsx', 'pdf']),
+  nextRunAt: z.string(),
+  createdAt: z.string(),
+})
+
+const storeSchema = z.array(reportScheduleSchema)
+
+export type ReportSchedule = z.infer<typeof reportScheduleSchema>
 
 const KEY = 'app.reports.schedules.v1'
 
@@ -18,7 +24,8 @@ function readAll(): ReportSchedule[] {
   try {
     const raw = window.localStorage.getItem(KEY)
     if (!raw) return []
-    return JSON.parse(raw) as ReportSchedule[]
+    const parsed = storeSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : []
   } catch {
     return []
   }

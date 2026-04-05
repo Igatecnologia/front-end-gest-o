@@ -19,7 +19,8 @@ import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Bar, BarChart, CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts'
+import { ChartTooltip, gridProps, xAxisProps, yAxisProps, CHART_COLORS } from '../components/charts/ChartDefaults'
 
 function formatBRLAxisShort(n: number) {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -28,9 +29,10 @@ function formatBRLAxisShort(n: number) {
 }
 import { ChartShell } from '../components/ChartShell'
 import { PageHeaderCard } from '../components/PageHeaderCard'
-import { DatePresetRange } from '../components/DatePresetRange'
+
 import { DevErrorDetail } from '../components/DevErrorDetail'
-import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { ANALITICO_STALE_MS } from '../api/apiEnv'
+import { hasAnySources } from '../services/dataSourceService'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import { getErrorMessage } from '../api/httpError'
@@ -62,31 +64,17 @@ export function DashboardPage() {
   const { lastPulseAt, transport } = useRealtimeHeartbeat(realtimeEnabled, pollMs || 5_000)
 
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.dashboard({ period, pollMs: String(pollMs) }),
-    queryFn: () => getDashboardData({ delayMs: 700, period }),
+    queryKey: queryKeys.dashboard({ period, pollMs: String(pollMs), start: startDate, end: endDate }),
+    queryFn: () => getDashboardData({ period, startDate: startDate || undefined, endDate: endDate || undefined }),
     refetchInterval: realtimeEnabled ? pollMs : false,
-    staleTime: SGBR_BI_ACTIVE ? SGBR_ANALITICO_STALE_MS : 15_000,
+    staleTime: hasAnySources() ? ANALITICO_STALE_MS : 15_000,
   })
 
   const revenueTotal = useMemo(
     () => (dashboardQuery.data?.revenue ?? []).reduce((sum, r) => sum + r.value, 0),
     [dashboardQuery.data],
   )
-  const filteredSales = useMemo(() => {
-    const points = dashboardQuery.data?.sales ?? []
-    if (!startDate && !endDate) return points
-    const year = dayjs().year()
-    const toTs = (label: string) => {
-      const [day, month] = label.split('/').map(Number)
-      return dayjs(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`).valueOf()
-    }
-    return points.filter((p) => {
-      const ts = toTs(p.date)
-      const matchStart = !startDate || ts >= dayjs(startDate).startOf('day').valueOf()
-      const matchEnd = !endDate || ts <= dayjs(endDate).endOf('day').valueOf()
-      return matchStart && matchEnd
-    })
-  }, [dashboardQuery.data?.sales, startDate, endDate])
+  const filteredSales = dashboardQuery.data?.sales ?? []
   const insights = useMemo(() => {
     const data = dashboardQuery.data
     if (!data) return { anomalies: [] as string[], suggestions: [] as string[] }
@@ -112,7 +100,7 @@ export function DashboardPage() {
     <PageHeaderCard
       title="Dashboard executivo"
       subtitle={
-        SGBR_BI_ACTIVE
+        hasAnySources()
           ? 'Indicadores calculados a partir de vendas analítico (API SGBR BI), conforme o período acima.'
           : 'Visão rápida dos principais indicadores.'
       }
@@ -181,7 +169,7 @@ export function DashboardPage() {
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       {header}
 
-      {SGBR_BI_ACTIVE && sgbrInfoVisible ? (
+      {hasAnySources() && sgbrInfoVisible ? (
         <Alert
           type="info"
           showIcon
@@ -195,70 +183,75 @@ export function DashboardPage() {
         />
       ) : null}
 
-      <Card className="app-card" variant="borderless" title="Período">
-        <Space wrap>
-          <Segmented
-            aria-label="Selecionar período do dashboard"
-            value={period}
-            onChange={(v) => {
-              const next = v as typeof period
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                p.set('p', next)
-                return p
-              })
-            }}
-            options={[
-              { label: '7 dias', value: '7d' },
-              { label: '30 dias', value: '30d' },
-              { label: '90 dias', value: '90d' },
-            ]}
-          />
-          <Select
-            style={{ width: 240 }}
-            value={String(pollMs)}
-            options={[
-              { value: '0', label: 'Tempo real: desativado' },
-              { value: '5000', label: 'Tempo real: 5s (polling)' },
-              { value: '10000', label: 'Tempo real: 10s (polling)' },
-              { value: '30000', label: 'Tempo real: 30s (polling)' },
-            ]}
-            onChange={(next) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                p.set('pollMs', next)
-                return p
-              })
-            }}
-          />
-          <Tag color={realtimeEnabled ? 'green' : 'default'}>
-            {realtimeEnabled ? `Canal ativo (${transport.toUpperCase()})` : 'Canal em pausa'}
-          </Tag>
-          <DatePicker.RangePicker
-            onChange={(vals) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                const [from, to] = vals ?? []
-                if (from) p.set('start', from.format('YYYY-MM-DD'))
-                else p.delete('start')
-                if (to) p.set('end', to.format('YYYY-MM-DD'))
-                else p.delete('end')
-                return p
-              })
-            }}
-          />
-          <DatePresetRange
-            storageKey="date-preset:dashboard"
-            onApply={(from, to) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                p.set('start', from)
-                p.set('end', to)
-                return p
-              })
-            }}
-          />
-        </Space>
+      <Card className="app-card no-hover" variant="borderless" title="Filtros">
+        <div className="filter-bar">
+          <div className="filter-item">
+            <span>Período</span>
+            <Segmented
+              aria-label="Selecionar período do dashboard"
+              value={period}
+              onChange={(v) => {
+                const next = v as typeof period
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  p.set('p', next)
+                  p.delete('start')
+                  p.delete('end')
+                  return p
+                })
+              }}
+              options={[
+                { label: '7 dias', value: '7d' },
+                { label: '30 dias', value: '30d' },
+                { label: '90 dias', value: '90d' },
+              ]}
+            />
+          </div>
+          <div className="filter-item">
+            <span>Atualização automática</span>
+            <Space size={8}>
+              <Select
+                style={{ width: 200 }}
+                value={String(pollMs)}
+                options={[
+                  { value: '0', label: 'Desativado' },
+                  { value: '10000', label: 'A cada 10s' },
+                  { value: '30000', label: 'A cada 30s' },
+                  { value: '60000', label: 'A cada 1min' },
+                ]}
+                onChange={(next) => {
+                  setSearchParams((prev) => {
+                    const p = new URLSearchParams(prev)
+                    p.set('pollMs', next)
+                    return p
+                  })
+                }}
+              />
+              <Tag color={realtimeEnabled ? 'green' : 'default'}>
+                {realtimeEnabled ? `${transport.toUpperCase()}` : 'Pausa'}
+              </Tag>
+            </Space>
+          </div>
+          <div className="filter-item">
+            <span>Ou escolha as datas</span>
+            <DatePicker.RangePicker
+              format="DD/MM/YYYY"
+              value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}
+              onChange={(vals) => {
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  const [from, to] = vals ?? []
+                  if (from) p.set('start', from.format('YYYY-MM-DD'))
+                  else p.delete('start')
+                  if (to) p.set('end', to.format('YYYY-MM-DD'))
+                  else p.delete('end')
+                  return p
+                })
+              }}
+              placeholder={['Data inicial', 'Data final']}
+            />
+          </div>
+        </div>
       </Card>
 
       <Row gutter={[16, 16]}>
@@ -272,7 +265,7 @@ export function DashboardPage() {
                 />
                 <Tag color={kpi.deltaPct === 0 ? 'default' : deltaColor(kpi.deltaPct)}>
                   {kpi.deltaPct === 0
-                    ? SGBR_BI_ACTIVE
+                    ? hasAnySources()
                       ? 'Sem comparativo na API'
                       : 'Período único'
                     : `${kpi.deltaPct > 0 ? '+' : ''}${kpi.deltaPct.toFixed(1)}%`}
@@ -294,24 +287,28 @@ export function DashboardPage() {
               Eixo horizontal: dia/mês do recorte.
             </Typography.Paragraph>
             <ChartShell>
-              <LineChart data={filteredSales} margin={{ left: 8, right: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} label={{ value: 'Dia', position: 'insideBottom', offset: -4 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} label={{ value: 'Unidades', angle: -90, position: 'insideLeft' }} />
-                <Tooltip
-                  formatter={(v) => [`${coerceTooltipNumberOr(v, 0)} unidades`, 'Total no dia']}
-                  labelFormatter={(l) => `Data: ${l}`}
-                />
-                <Line
+              <AreaChart data={filteredSales} margin={{ left: 8, right: 8 }}>
+                <defs>
+                  <linearGradient id="gradVendas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.15} />
+                    <stop offset="95%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid {...gridProps} />
+                <XAxis dataKey="date" {...xAxisProps} />
+                <YAxis {...yAxisProps} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip format="integer" />} />
+                <Area
                   type="monotone"
                   dataKey="value"
                   name="Quantidade"
-                  stroke="#1677ff"
+                  stroke={CHART_COLORS[0]}
                   strokeWidth={2}
-                  dot={{ fill: '#1677ff', r: 3 }}
+                  fill="url(#gradVendas)"
+                  dot={{ fill: CHART_COLORS[0], r: 3 }}
                   activeDot={{ r: 5 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ChartShell>
           </Card>
         </Col>
@@ -325,17 +322,11 @@ export function DashboardPage() {
             </Typography.Paragraph>
             <ChartShell>
               <BarChart data={data.revenue} margin={{ left: 8, right: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} label={{ value: 'Mês', position: 'insideBottom', offset: -4 }} />
-                <YAxis tickFormatter={formatBRLAxisShort} width={52} tick={{ fontSize: 11 }} label={{ value: 'R$', angle: -90, position: 'insideLeft' }} />
-                <Tooltip
-                  formatter={(v) => {
-                    const n = coerceTooltipNumber(v)
-                    return [(n !== undefined ? formatBRL(n) : ''), 'Faturamento']
-                  }}
-                  labelFormatter={(l) => `Mês: ${l}`}
-                />
-                <Bar dataKey="value" name="Faturamento" fill="rgba(22, 119, 255, 0.65)" radius={[6, 6, 0, 0]} />
+                <CartesianGrid {...gridProps} />
+                <XAxis dataKey="month" {...xAxisProps} />
+                <YAxis tickFormatter={formatBRLAxisShort} {...yAxisProps} width={56} />
+                <Tooltip content={<ChartTooltip format="currency" />} />
+                <Bar dataKey="value" name="Faturamento" fill={CHART_COLORS[0]} fillOpacity={0.75} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ChartShell>
           </Card>

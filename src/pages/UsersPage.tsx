@@ -25,16 +25,15 @@ import {
 import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
 import { PageHeaderCard } from '../components/PageHeaderCard'
-import { DatePresetRange } from '../components/DatePresetRange'
+
 import { MetricCard } from '../components/MetricCard'
 import { VirtualTable, type VirtualColumn } from '../components/VirtualTable'
 import { useAuth } from '../auth/AuthContext'
 import { hasPermission } from '../auth/permissions'
-import type { User, UserRole } from '../mocks/users'
+import type { User, UserRole } from '../types/models'
 import { createUser, deleteUser, listUsers, updateUser } from '../services/usersService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../query/queryKeys'
-import { SGBR_BI_ACTIVE } from '../api/apiEnv'
 import { DevErrorDetail } from '../components/DevErrorDetail'
 import { getErrorMessage } from '../api/httpError'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -49,9 +48,9 @@ type UserForm = {
 }
 
 function roleTag(role: UserRole) {
-  if (role === 'admin') return <Tag color="red">Admin</Tag>
-  if (role === 'manager') return <Tag color="blue">Manager</Tag>
-  return <Tag>Viewer</Tag>
+  if (role === 'admin') return <Tag color="red">Administrador</Tag>
+  if (role === 'manager') return <Tag color="blue">Gerente</Tag>
+  return <Tag>Visualizador</Tag>
 }
 
 function statusTag(status: User['status']) {
@@ -227,7 +226,7 @@ export function UsersPage() {
       <Button
         type="primary"
         icon={<PlusOutlined />}
-        disabled={!canWrite || SGBR_BI_ACTIVE}
+        disabled={!canWrite}
         onClick={() => {
           setEditing(null)
           form.resetFields()
@@ -244,22 +243,9 @@ export function UsersPage() {
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
         title="Usuários"
-        subtitle={
-          SGBR_BI_ACTIVE
-            ? 'A API SGBR BI usada neste projeto não expõe cadastro de usuários. Use o painel do fornecedor se precisar.'
-            : 'Gestão de usuários via API configurada em VITE_API_BASE_URL.'
-        }
+        subtitle="Gerencie os usuarios que acessam o sistema."
         extra={headerExtra}
       />
-
-      {SGBR_BI_ACTIVE ? (
-        <Alert
-          type="info"
-          showIcon
-          title="Sem listagem de usuários pela API SGBR"
-          description="Esta tela permanece vazia até existir um endpoint dedicado ou outro backend em VITE_API_BASE_URL."
-        />
-      ) : null}
 
       <Card className="app-card" variant="borderless">
         <Row gutter={[12, 12]} align="middle">
@@ -278,9 +264,9 @@ export function UsersPage() {
               onChange={setRoleFilter}
               options={[
                 { value: 'all', label: 'Todos os perfis' },
-                { value: 'admin', label: 'Admin' },
-                { value: 'manager', label: 'Manager' },
-                { value: 'viewer', label: 'Viewer' },
+                { value: 'admin', label: 'Administrador' },
+                { value: 'manager', label: 'Gerente' },
+                { value: 'viewer', label: 'Visualizador' },
               ]}
             />
           </Col>
@@ -299,6 +285,8 @@ export function UsersPage() {
           <Col xs={24} md={7}>
             <DatePicker.RangePicker
               style={{ width: '100%' }}
+              format="DD/MM/YYYY"
+              placeholder={['Data inicial', 'Data final']}
               onChange={(vals) => {
                 if (!vals || !vals[0] || !vals[1]) {
                   setCreatedRange(null)
@@ -306,12 +294,6 @@ export function UsersPage() {
                 }
                 setCreatedRange([vals[0].format('YYYY-MM-DD'), vals[1].format('YYYY-MM-DD')])
               }}
-            />
-          </Col>
-          <Col xs={24} md={24}>
-            <DatePresetRange
-              storageKey="date-preset:users"
-              onApply={(start, end) => setCreatedRange([start, end])}
             />
           </Col>
         </Row>

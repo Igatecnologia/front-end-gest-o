@@ -37,6 +37,26 @@ const UsersPage = lazy(() =>
 const AuditPage = lazy(() =>
   import('../pages/AuditPage').then((m) => ({ default: m.AuditPage })),
 )
+const ProducaoPage = lazy(() =>
+  import('../pages/ProducaoPage').then((m) => ({ default: m.ProducaoPage })),
+)
+const FichaTecnicaPage = lazy(() =>
+  import('../pages/FichaTecnicaPage').then((m) => ({ default: m.FichaTecnicaPage })),
+)
+const ComercialPage = lazy(() =>
+  import('../pages/ComercialPage').then((m) => ({ default: m.ComercialPage })),
+)
+const DashboardOperacionalPage = lazy(() =>
+  import('../pages/DashboardOperacionalPage').then((m) => ({
+    default: m.DashboardOperacionalPage,
+  })),
+)
+const AlertasPage = lazy(() =>
+  import('../pages/AlertasPage').then((m) => ({ default: m.AlertasPage })),
+)
+const DataSourceConfigPage = lazy(() =>
+  import('../pages/DataSourceConfigPage').then((m) => ({ default: m.DataSourceConfigPage })),
+)
 
 export function AppRouter() {
   return (
@@ -128,10 +148,50 @@ export function AppRouter() {
               </RequirePermission>
             }
           />
+          <Route
+            path="/producao"
+            element={
+              <RequirePermission permission="producao:view">
+                <ProducaoPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/ficha-tecnica"
+            element={
+              <RequirePermission permission="fichatecnica:view">
+                <FichaTecnicaPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/comercial"
+            element={
+              <RequirePermission permission="comercial:view">
+                <ComercialPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/operacional"
+            element={
+              <RequirePermission permission="dashboard:view">
+                <DashboardOperacionalPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/alertas"
+            element={
+              <RequirePermission permission="alertas:view">
+                <AlertasPage />
+              </RequirePermission>
+            }
+          />
+          <Route path="/fontes-de-dados" element={<DataSourceConfigPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </Suspense>
   )
 }
-

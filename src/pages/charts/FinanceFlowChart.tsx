@@ -1,6 +1,6 @@
 import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartShell } from '../../components/ChartShell'
-import type { FinanceOverview } from '../../mocks/finance'
+import type { FinanceOverview } from '../../types/models'
 
 function formatBRL(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

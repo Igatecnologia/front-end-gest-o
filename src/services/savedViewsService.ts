@@ -1,11 +1,17 @@
-export type SavedView = {
-  id: string
-  name: string
-  params: string // URLSearchParams string
-  createdAt: string // ISO
-}
+import { z } from 'zod'
 
-type Store = Record<string, SavedView[]>
+const savedViewSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  params: z.string(),
+  createdAt: z.string(),
+})
+
+const storeSchema = z.record(z.string(), z.array(savedViewSchema))
+
+export type SavedView = z.infer<typeof savedViewSchema>
+
+type Store = z.infer<typeof storeSchema>
 
 const KEY = 'app.savedViews.v1'
 
@@ -13,7 +19,8 @@ function readStore(): Store {
   try {
     const raw = window.localStorage.getItem(KEY)
     if (!raw) return {}
-    return JSON.parse(raw) as Store
+    const parsed = storeSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : {}
   } catch {
     return {}
   }

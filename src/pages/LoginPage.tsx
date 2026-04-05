@@ -1,12 +1,13 @@
-import { LockOutlined, MailOutlined, UserOutlined } from '@ant-design/icons'
+import { LockOutlined, UserOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Form, Input, Space, Typography } from 'antd'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { useAuth } from '../auth/AuthContext'
-import { publicAssetUrl } from '../utils/publicAssetUrl'
+import { useTenant } from '../tenant/TenantContext'
 import { sanitizeAppRedirectPath } from '../utils/sanitizeAppRedirectPath'
-import { IS_SGBR_BI_AUTH } from '../api/apiEnv'
+import { checkLoginAllowed, recordLoginAttempt, getLoginAttemptsRemaining } from '../auth/loginThrottle'
+import { hasAnySources, listDataSources } from '../services/dataSourceService'
 
 type LoginForm = {
   email: string
@@ -15,27 +16,51 @@ type LoginForm = {
 
 export function LoginPage() {
   const { isAuthenticated, signIn } = useAuth()
+  const tenant = useTenant()
   const navigate = useNavigate()
   const location = useLocation()
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [lockoutMsg, setLockoutMsg] = useState<string | null>(null)
 
   const from = sanitizeAppRedirectPath(
     (location.state as { from?: string } | null)?.from,
     '/dashboard',
   )
 
+  const [configured, setConfigured] = useState(hasAnySources())
+
+  useEffect(() => {
+    if (!configured) {
+      listDataSources().then(() => setConfigured(hasAnySources()))
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (isAuthenticated) return <Navigate to={from} replace />
 
   async function onFinish(values: LoginForm) {
+    const { allowed, waitSeconds } = checkLoginAllowed()
+    if (!allowed) {
+      setLockoutMsg(`Muitas tentativas. Aguarde ${waitSeconds}s antes de tentar novamente.`)
+      return
+    }
+    setLockoutMsg(null)
+
     setSubmitting(true)
     setErrorMsg(null)
     try {
       await signIn(values)
+      recordLoginAttempt(true)
       navigate(from, { replace: true })
     } catch (err) {
+      recordLoginAttempt(false)
+      const remaining = getLoginAttemptsRemaining()
       const message = err instanceof Error ? err.message : 'Falha ao fazer login.'
-      setErrorMsg(message)
+      setErrorMsg(
+        remaining > 0
+          ? `${message} (${remaining} tentativa${remaining === 1 ? '' : 's'} restante${remaining === 1 ? '' : 's'})`
+          : message,
+      )
     } finally {
       setSubmitting(false)
     }
@@ -44,58 +69,53 @@ export function LoginPage() {
   return (
     <div className="login-shell">
       <div className="login-card-wrap">
+        <div className="login-brand-strip">
+          <img src={tenant.logoUrl} alt={tenant.companyName} />
+          <div>
+            <div className="login-brand-text">{tenant.companyName}</div>
+            <div className="login-brand-sub">{tenant.subtitle}</div>
+          </div>
+        </div>
         <PageHeaderCard
           title="Entrar"
-          subtitle={
-            IS_SGBR_BI_AUTH
-              ? 'IGA — autenticação via API SGBR BI (usuário e senha).'
-              : 'IGA Gestão e Análise de Dados — use as credenciais de demo abaixo.'
-          }
-          extra={
-            <img
-              src={publicAssetUrl('logo.png.png')}
-              alt="IGA"
-              className="login-header-logo"
-            />
-          }
+          subtitle={`Acesse o painel ${tenant.companyName} com suas credenciais.`}
         />
+
+        {!configured && (
+          <Alert
+            type="warning"
+            showIcon
+            message="Sistema ainda nao configurado"
+            description="Entre em contato com o administrador para configurar a conexao com o seu sistema."
+            style={{ marginTop: 16 }}
+          />
+        )}
 
         <Card className="app-card" style={{ marginTop: 16, borderRadius: 14 }}>
           <Form<LoginForm>
             layout="vertical"
             onFinish={onFinish}
-            initialValues={
-              IS_SGBR_BI_AUTH
-                ? { email: 'iga', password: '' }
-                : { email: 'admin@admin.com', password: 'admin' }
-            }
+            initialValues={{ email: '', password: '' }}
             scrollToFirstError
           >
+            {lockoutMsg ? (
+              <Alert type="warning" showIcon message={lockoutMsg} className="login-error-alert" />
+            ) : null}
+
             {errorMsg ? (
-              <Alert
-                type="error"
-                showIcon
-                title={errorMsg}
-                className="login-error-alert"
-              />
+              <Alert type="error" showIcon message={errorMsg} className="login-error-alert" />
             ) : null}
 
             <Form.Item
-              label={IS_SGBR_BI_AUTH ? 'Usuário' : 'E-mail'}
+              label="Usuario"
               name="email"
-              rules={
-                IS_SGBR_BI_AUTH
-                  ? [{ required: true, message: 'Informe o usuário.' }]
-                  : [
-                      { required: true, message: 'Informe o e-mail.' },
-                      { type: 'email', message: 'E-mail inválido.' },
-                    ]
-              }
+              rules={[{ required: true, message: 'Informe o usuario.' }]}
             >
               <Input
-                prefix={IS_SGBR_BI_AUTH ? <UserOutlined /> : <MailOutlined />}
-                placeholder={IS_SGBR_BI_AUTH ? 'iga' : 'admin@admin.com'}
+                prefix={<UserOutlined />}
+                placeholder="Usuario"
                 autoComplete="username"
+                maxLength={254}
               />
             </Form.Item>
 
@@ -106,35 +126,16 @@ export function LoginPage() {
             >
               <Input.Password
                 prefix={<LockOutlined />}
-                placeholder={IS_SGBR_BI_AUTH ? 'Senha' : 'admin'}
+                placeholder="Senha"
                 autoComplete="current-password"
+                maxLength={128}
               />
             </Form.Item>
 
-            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={submitting}
-                block
-              >
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              <Button type="primary" htmlType="submit" loading={submitting} block disabled={!configured}>
                 Entrar
               </Button>
-              {IS_SGBR_BI_AUTH ? (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  A senha é enviada como SHA-256 (hex), como esperado pela API.
-                </Typography.Text>
-              ) : (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  Demo:
-                  <br />
-                  <strong>admin@admin.com</strong> / <strong>admin</strong>
-                  <br />
-                  <strong>manager@admin.com</strong> / <strong>admin</strong>
-                  <br />
-                  <strong>viewer@admin.com</strong> / <strong>admin</strong>
-                </Typography.Text>
-              )}
             </Space>
           </Form>
         </Card>
@@ -142,4 +143,3 @@ export function LoginPage() {
     </div>
   )
 }
-

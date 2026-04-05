@@ -40,3 +40,32 @@ export async function postValidated<TSchema extends ZodTypeAny>(
   return parsed.data
 }
 
+export async function putValidated<TSchema extends ZodTypeAny>(
+  http: AxiosInstance,
+  url: string,
+  body: unknown,
+  schema: TSchema,
+  config?: AxiosRequestConfig,
+): Promise<z.infer<TSchema>> {
+  const res = await http.put(url, body, config)
+  const parsed = schema.safeParse(res.data)
+  if (!parsed.success) {
+    throw new ApiContractError('Resposta da API fora do contrato.', parsed.error)
+  }
+  return parsed.data
+}
+
+export async function deleteValidated<TSchema extends ZodTypeAny>(
+  http: AxiosInstance,
+  url: string,
+  schema: TSchema,
+  config?: AxiosRequestConfig,
+): Promise<z.infer<TSchema>> {
+  const res = await http.delete(url, config)
+  const parsed = schema.safeParse(res.data)
+  if (!parsed.success) {
+    throw new ApiContractError('Resposta da API fora do contrato.', parsed.error)
+  }
+  return parsed.data
+}
+

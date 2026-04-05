@@ -1,16 +1,33 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import dayjs from 'dayjs'
+import 'dayjs/locale/pt-br'
 import 'antd/dist/reset.css'
 import './index.css'
+
+dayjs.locale('pt-br')
 import App from './App'
+import { TenantProvider } from './tenant/TenantProvider'
 import { ThemeProvider } from './theme/ThemeProvider'
+import { I18nProvider } from './i18n/I18nContext'
 import { AuthProvider } from './auth/AuthProvider'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './query/queryClient'
-import { USE_MOCKS } from './api/apiEnv'
 import { publicAssetUrl } from './utils/publicAssetUrl'
+import { setCurrentTenantId } from './tenant/tenantStorage'
+
+/** Resolve tenantId cedo — antes de qualquer read de localStorage */
+function resolveEarlyTenantId(): string {
+  const envTenant = import.meta.env.VITE_TENANT_ID?.toString().trim()
+  if (envTenant) return envTenant
+  const host = window.location.hostname
+  const parts = host.split('.')
+  if (parts.length >= 3 && parts[0] !== 'www') return parts[0]
+  return 'default'
+}
+setCurrentTenantId(resolveEarlyTenantId())
 
 /** Fundo da tela de login (CSS não resolve import.meta.env.BASE_URL sozinho). */
 document.documentElement.style.setProperty(
@@ -18,41 +35,28 @@ document.documentElement.style.setProperty(
   `url("${publicAssetUrl('logo.png.png')}")`,
 )
 
-async function enableMocking() {
-  if (!USE_MOCKS) return
-  const { worker } = await import('./mocks/server/browser')
-  const base = import.meta.env.BASE_URL
-  await worker.start({
-    onUnhandledRequest: 'bypass',
-    serviceWorker: {
-      url: `${base}mockServiceWorker.js`,
-      options: { scope: base },
-    },
-  })
-}
-
 function routerBasename() {
   const raw = import.meta.env.BASE_URL
   if (raw === '/') return undefined
   return raw.replace(/\/$/, '') || undefined
 }
 
-function renderApp() {
-  createRoot(document.getElementById('root')!).render(
-    <StrictMode>
-      <ThemeProvider>
-        <AuthProvider>
-          <QueryClientProvider client={queryClient}>
-            <AppErrorBoundary>
-              <BrowserRouter basename={routerBasename()}>
-                <App />
-              </BrowserRouter>
-            </AppErrorBoundary>
-          </QueryClientProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </StrictMode>,
-  )
-}
-
-enableMocking().finally(renderApp)
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <TenantProvider>
+      <I18nProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <QueryClientProvider client={queryClient}>
+              <AppErrorBoundary>
+                <BrowserRouter basename={routerBasename()}>
+                  <App />
+                </BrowserRouter>
+              </AppErrorBoundary>
+            </QueryClientProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </I18nProvider>
+    </TenantProvider>
+  </StrictMode>,
+)

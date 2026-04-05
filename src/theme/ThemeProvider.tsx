@@ -1,4 +1,9 @@
 import { App, ConfigProvider, theme as antdTheme } from 'antd'
+import ptBR from 'antd/locale/pt_BR'
+import dayjs from 'dayjs'
+import 'dayjs/locale/pt-br'
+
+dayjs.locale('pt-br')
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ThemeContext, type ThemeContextValue } from './ThemeContext'
 import {
@@ -9,24 +14,24 @@ import {
 
 const quantum = {
   dark: {
-    canvas: '#0D0F12',
-    surface: '#151A21',
-    elevated: '#1B212B',
-    border: '#2A3442',
-    primary: '#7A86FF',
-    secondary: '#00D4D4',
-    text: '#F7F8F8',
-    muted: '#A6B0BE',
+    canvas: '#080D12',
+    surface: '#111920',
+    elevated: '#19232E',
+    border: '#243344',
+    primary: '#4AABE0',
+    secondary: '#2196D3',
+    text: '#E8EEF4',
+    muted: '#8A9BB0',
   },
   light: {
-    canvas: '#F6F8FC',
+    canvas: '#F2F6FA',
     surface: '#FFFFFF',
     elevated: '#FFFFFF',
-    border: '#DDE3EE',
-    primary: '#4F46E5',
-    secondary: '#0891B2',
-    text: '#111827',
-    muted: '#475569',
+    border: '#D4DFE9',
+    primary: '#1A7AB5',
+    secondary: '#0D5A8C',
+    text: '#0F1C28',
+    muted: '#546878',
   },
 } as const
 
@@ -68,7 +73,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         controlHeight: 36,
         controlHeightLG: 40,
 
-        // Quantum Carbon tokens
+        // Palette
         colorPrimary: palette.primary,
         colorInfo: palette.primary,
         colorBorder: palette.border,
@@ -84,6 +89,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         colorBgContainer: palette.surface,
         colorBgElevated:
           mode === 'dark' ? quantum.dark.elevated : quantum.light.elevated,
+
+        // Link colors
+        colorLink: palette.primary,
+        colorLinkHover: palette.secondary,
       },
       components: {
         Layout: {
@@ -95,9 +104,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         Card: { paddingLG: 20 },
         Table: {
           headerBorderRadius: 12,
-          headerBg: mode === 'dark' ? quantum.dark.elevated : '#F3F6FB',
+          headerBg: mode === 'dark' ? quantum.dark.elevated : '#e8f0f6',
           borderColor: palette.border,
-          rowHoverBg: mode === 'dark' ? '#222B37' : '#f5f7fb',
+          rowHoverBg: mode === 'dark' ? '#1a2a38' : '#f0f6fa',
         },
         Button: { borderRadius: 10 },
         Input: {
@@ -105,18 +114,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           hoverBorderColor: palette.primary,
         },
         Select: {
-          optionSelectedBg: mode === 'dark' ? '#222B37' : '#EEF2FF',
+          optionSelectedBg: mode === 'dark' ? '#1a2a38' : '#e4f0f8',
         },
         Menu: {
           itemSelectedBg:
             mode === 'dark'
-              ? 'rgba(122, 134, 255, 0.14)'
-              : 'rgba(79, 70, 229, 0.10)',
+              ? 'rgba(74, 171, 224, 0.14)'
+              : 'rgba(26, 122, 181, 0.10)',
           itemSelectedColor: palette.primary,
           itemHoverBg:
             mode === 'dark'
-              ? 'rgba(122, 134, 255, 0.10)'
-              : 'rgba(79, 70, 229, 0.06)',
+              ? 'rgba(74, 171, 224, 0.08)'
+              : 'rgba(26, 122, 181, 0.06)',
         },
       },
     }),
@@ -125,7 +134,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={value}>
-      <ConfigProvider theme={themeConfig}>
+      <ConfigProvider theme={themeConfig} locale={ptBR}>
         <App>{children}</App>
       </ConfigProvider>
     </ThemeContext.Provider>

@@ -1,5 +1,5 @@
-import type { FinanceOverview } from '../mocks/finance'
-import { SGBR_BI_ACTIVE } from '../api/apiEnv'
+import type { FinanceOverview } from '../types/models'
+import { hasAnySources } from '../services/dataSourceService'
 import { getValidated } from '../api/validatedHttp'
 import { financeOverviewSchema } from '../api/schemas'
 import { http } from './http'
@@ -13,7 +13,7 @@ type GetFinanceOverviewOpts = {
 }
 
 export async function getFinanceOverview(opts?: GetFinanceOverviewOpts): Promise<FinanceOverview> {
-  if (SGBR_BI_ACTIVE) {
+  if (hasAnySources()) {
     const { dtDe, dtAte } =
       opts?.dtDe && opts?.dtAte ? { dtDe: opts.dtDe, dtAte: opts.dtAte } : financeRangeDefault()
     const rows = await getVendasAnalitico({ dtDe, dtAte })

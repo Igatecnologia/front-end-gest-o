@@ -1,6 +1,6 @@
-import type { DashboardMock } from '../mocks/dashboard'
-import type { FinanceOverview } from '../mocks/finance'
-import type { ReportItem } from '../mocks/reports'
+import type { DashboardData } from '../types/models'
+import type { FinanceOverview } from '../types/models'
+import type { ReportItem } from '../types/models'
 import type { VendaAnaliticaRow } from '../api/schemas'
 import { formatTsBrDayMonth, nowBr, parseVendaDate } from './dayjsBr'
 
@@ -30,7 +30,7 @@ function trendFromSeries(values: number[], take = 8): number[] {
 }
 
 /** Monta o objeto de dashboard consumido pelas páginas a partir das linhas da API SGBR. */
-export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): DashboardMock {
+export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): DashboardData {
   const faturamento = rows.reduce((s, r) => s + r.total, 0)
   const linhasVenda = rows.length
   const clientes = new Set(rows.map((r) => String(r.codcliente)))
@@ -56,24 +56,24 @@ export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): Dashboa
     curM.valor += r.total
     byMonthYear.set(mKey, curM)
 
-    heatmap.set(hKey, (heatmap.get(hKey) ?? 0) + r.qtdevendida)
+    heatmap.set(hKey, (heatmap.get(hKey) ?? 0) + r.total)
   }
 
   const salesSorted = [...byDayStart.entries()].sort((a, b) => a[0] - b[0])
-  const sales: DashboardMock['sales'] = salesSorted.map(([ts, v]) => ({
+  const sales: DashboardData['sales'] = salesSorted.map(([ts, v]) => ({
     date: formatTsBrDayMonth(ts),
     value: Math.round(v.qtd),
   }))
 
   const revenueSorted = [...byMonthYear.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  const revenue: DashboardMock['revenue'] = revenueSorted.map(([ym, v]) => {
+  const revenue: DashboardData['revenue'] = revenueSorted.map(([ym, v]) => {
     const [, mm] = ym.split('-')
     const mi = Math.max(0, Number(mm) - 1)
     const month = PT_MONTHS[mi] ?? 'Jan'
     return { month, value: Math.round(v.valor * 100) / 100 }
   })
 
-  const heatmapOut: DashboardMock['heatmap'] = []
+  const heatmapOut: DashboardData['heatmap'] = []
   for (const [hKey, value] of heatmap) {
     const [day, h] = hKey.split('|')
     heatmapOut.push({ day, hour: Number(h), value })
@@ -82,7 +82,7 @@ export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): Dashboa
   const latestSorted = [...rows].sort(
     (a, b) => parseVendaDate(b.data).valueOf() - parseVendaDate(a.data).valueOf(),
   )
-  const latest: DashboardMock['latest'] = latestSorted.slice(0, 120).map((r, i) => ({
+  const latest: DashboardData['latest'] = latestSorted.slice(0, 120).map((r, i) => ({
     id: `vd-${String(r.codcliente)}-${String(r.codprod)}-${i}-${parseVendaDate(r.data).valueOf()}`,
     cliente: String(r.nomecliente),
     total: Math.round(r.total * 100) / 100,
@@ -94,7 +94,7 @@ export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): Dashboa
   const trendVendas = trendFromSeries(salesSorted.map(([, v]) => v.qtd))
   const trendFat = trendFromSeries(dailyVals.length ? dailyVals : [faturamento])
 
-  const kpis: DashboardMock['kpis'] = [
+  const kpis: DashboardData['kpis'] = [
     {
       key: 'vendas',
       label: 'Itens (linhas)',
@@ -196,75 +196,101 @@ export function buildReportItemsFromVendasRows(rows: VendaAnaliticaRow[]): Repor
   if (!rows.length) return []
 
   const receita = rows.reduce((s, r) => s + r.total, 0)
+  const custoTotal = rows.reduce((s, r) => s + r.precocustoitem * r.qtdevendida, 0)
+  const lucro = receita - custoTotal
   const ticket = receita / rows.length
+  const qtdTotal = rows.reduce((s, r) => s + r.qtdevendida, 0)
 
-  const byProd = new Map<string, number>()
-  const byCli = new Map<string, number>()
+  const byProd = new Map<string, { total: number; qtd: number; custo: number }>()
+  const byCli = new Map<string, { total: number; count: number }>()
+  const byMonth = new Map<string, { total: number; count: number }>()
+
   for (const r of rows) {
-    const pk = String(r.decprod).slice(0, 80)
-    byProd.set(pk, (byProd.get(pk) ?? 0) + r.total)
-    const ck = String(r.nomecliente)
-    byCli.set(ck, (byCli.get(ck) ?? 0) + r.total)
+    const pk = String(r.decprod).slice(0, 60)
+    const cur = byProd.get(pk) ?? { total: 0, qtd: 0, custo: 0 }
+    cur.total += r.total
+    cur.qtd += r.qtdevendida
+    cur.custo += r.precocustoitem * r.qtdevendida
+    byProd.set(pk, cur)
+
+    const ck = String(r.nomecliente).slice(0, 40)
+    const cc = byCli.get(ck) ?? { total: 0, count: 0 }
+    cc.total += r.total
+    cc.count++
+    byCli.set(ck, cc)
+
+    const d = parseVendaDate(r.data)
+    const mk = `${d.year()}-${String(d.month() + 1).padStart(2, '0')}`
+    const mc = byMonth.get(mk) ?? { total: 0, count: 0 }
+    mc.total += r.total
+    mc.count++
+    byMonth.set(mk, mc)
   }
 
-  const topProd = [...byProd.entries()].sort((a, b) => b[1] - a[1])[0]
-  const topCli = [...byCli.entries()].sort((a, b) => b[1] - a[1])[0]
   const uniqCli = byCli.size
-
+  const uniqProd = byProd.size
   const at = isoNowDate()
 
-  const items: ReportItem[] = [
-    {
-      id: 'sgbr-agg-receita',
-      nome: 'Receita no período (SGBR)',
+  const items: ReportItem[] = []
+
+  // ── KPIs gerais ──
+  items.push(
+    { id: 'receita-total', nome: 'Receita total no periodo', categoria: 'Financeiro', tipo: 'Financeiro', valorPrincipal: Math.round(receita * 100) / 100, valorSecundario: rows.length, segmento: 'Enterprise', atualizadoEm: at },
+    { id: 'lucro-bruto', nome: 'Lucro bruto estimado', categoria: 'Financeiro', tipo: 'Financeiro', valorPrincipal: Math.round(lucro * 100) / 100, valorSecundario: Math.round(custoTotal * 100) / 100, segmento: 'Enterprise', atualizadoEm: at },
+    { id: 'margem', nome: 'Margem bruta', categoria: 'Financeiro', tipo: 'Performance', valorPrincipal: receita > 0 ? Math.round((lucro / receita) * 10000) / 100 : 0, valorSecundario: 0, segmento: 'Enterprise', atualizadoEm: at },
+    { id: 'ticket-medio', nome: 'Ticket medio por venda', categoria: 'Vendas', tipo: 'Performance', valorPrincipal: Math.round(ticket * 100) / 100, valorSecundario: uniqCli, segmento: 'MidMarket', atualizadoEm: at },
+    { id: 'qtd-total', nome: 'Quantidade total vendida', categoria: 'Vendas', tipo: 'Tendência', valorPrincipal: qtdTotal, valorSecundario: rows.length, segmento: 'Enterprise', atualizadoEm: at },
+    { id: 'clientes-unicos', nome: 'Clientes unicos atendidos', categoria: 'Vendas', tipo: 'Segmentação', valorPrincipal: uniqCli, valorSecundario: 0, segmento: 'Enterprise', atualizadoEm: at },
+    { id: 'produtos-unicos', nome: 'Produtos diferentes vendidos', categoria: 'Vendas', tipo: 'Segmentação', valorPrincipal: uniqProd, valorSecundario: 0, segmento: 'Enterprise', atualizadoEm: at },
+  )
+
+  // ── Top produtos (ate 10) ──
+  const topProds = [...byProd.entries()].sort((a, b) => b[1].total - a[1].total).slice(0, 10)
+  topProds.forEach(([nome, data], i) => {
+    const margem = data.total > 0 ? ((data.total - data.custo) / data.total) * 100 : 0
+    items.push({
+      id: `prod-${i + 1}`,
+      nome: `${nome}`,
+      categoria: 'Vendas',
+      tipo: 'TopN',
+      valorPrincipal: Math.round(data.total * 100) / 100,
+      valorSecundario: data.qtd,
+      segmento: margem >= 50 ? 'Enterprise' : margem >= 30 ? 'MidMarket' : 'SMB',
+      atualizadoEm: at,
+    })
+  })
+
+  // ── Top clientes (ate 10) ──
+  const topClis = [...byCli.entries()].sort((a, b) => b[1].total - a[1].total).slice(0, 10)
+  topClis.forEach(([nome, data], i) => {
+    items.push({
+      id: `cli-${i + 1}`,
+      nome: `${nome}`,
+      categoria: 'Usuários',
+      tipo: 'TopN',
+      valorPrincipal: Math.round(data.total * 100) / 100,
+      valorSecundario: data.count,
+      segmento: data.total >= 10000 ? 'Enterprise' : data.total >= 3000 ? 'MidMarket' : 'SMB',
+      atualizadoEm: at,
+    })
+  })
+
+  // ── Faturamento por mes ──
+  const months = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  months.forEach(([mk, data]) => {
+    const [y, m] = mk.split('-')
+    const label = `${PT_MONTHS[Number(m) - 1] ?? m}/${y}`
+    items.push({
+      id: `mes-${mk}`,
+      nome: `Faturamento ${label}`,
       categoria: 'Financeiro',
-      tipo: 'Financeiro',
-      valorPrincipal: Math.round(receita * 100) / 100,
-      valorSecundario: rows.length,
-      segmento: 'Enterprise',
-      atualizadoEm: at,
-    },
-    {
-      id: 'sgbr-agg-ticket',
-      nome: 'Ticket médio por linha',
-      categoria: 'Vendas',
-      tipo: 'Performance',
-      valorPrincipal: Math.round(ticket * 100) / 100,
-      valorSecundario: uniqCli,
-      segmento: 'MidMarket',
-      atualizadoEm: at,
-    },
-    {
-      id: 'sgbr-top-prod',
-      nome: topProd ? `Top produto: ${topProd[0].slice(0, 40)}` : 'Top produto',
-      categoria: 'Vendas',
-      tipo: 'TopN',
-      valorPrincipal: topProd ? Math.round(topProd[1] * 100) / 100 : 0,
-      valorSecundario: byProd.size,
-      segmento: 'Enterprise',
-      atualizadoEm: at,
-    },
-    {
-      id: 'sgbr-top-cli',
-      nome: topCli ? `Top cliente: ${topCli[0].slice(0, 40)}` : 'Top cliente',
-      categoria: 'Vendas',
-      tipo: 'TopN',
-      valorPrincipal: topCli ? Math.round(topCli[1] * 100) / 100 : 0,
-      valorSecundario: uniqCli,
-      segmento: 'Enterprise',
-      atualizadoEm: at,
-    },
-    {
-      id: 'sgbr-linhas',
-      nome: 'Volume de linhas analíticas',
-      categoria: 'Vendas',
       tipo: 'Tendência',
-      valorPrincipal: rows.length,
-      valorSecundario: uniqCli,
-      segmento: 'SMB',
+      valorPrincipal: Math.round(data.total * 100) / 100,
+      valorSecundario: data.count,
+      segmento: 'Enterprise',
       atualizadoEm: at,
-    },
-  ]
+    })
+  })
 
   return items
 }

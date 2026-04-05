@@ -1,19 +1,13 @@
 import { z } from 'zod'
-import type { User, UserRole } from '../mocks/users'
-import { SGBR_BI_ACTIVE } from '../api/apiEnv'
+import type { User, UserRole } from '../types/models'
 import { http } from './http'
-import { getValidated, postValidated, ApiContractError } from '../api/validatedHttp'
+import { getValidated, postValidated, putValidated } from '../api/validatedHttp'
 import { userCreateInputSchema, userSchema, usersResponseSchema } from '../api/schemas'
 
-function assertNotSgbrOnly() {
-  if (SGBR_BI_ACTIVE) {
-    throw new Error('A API SGBR BI não expõe cadastro de usuários neste projeto.')
-  }
-}
+const BASE = '/api/v1/users'
 
 export async function listUsers(): Promise<User[]> {
-  if (SGBR_BI_ACTIVE) return []
-  return getValidated(http, '/users', usersResponseSchema)
+  return getValidated(http, BASE, usersResponseSchema)
 }
 
 export async function createUser(input: {
@@ -23,28 +17,19 @@ export async function createUser(input: {
   status: User['status']
   password: string
 }): Promise<User> {
-  assertNotSgbrOnly()
   const payload = userCreateInputSchema.parse(input)
-  return postValidated(http, '/users', payload, userSchema)
+  return postValidated(http, BASE, payload, userSchema)
 }
 
 export async function updateUser(
   id: string,
   patch: Partial<Pick<User, 'name' | 'email' | 'role' | 'status' | 'password'>>,
 ): Promise<User> {
-  assertNotSgbrOnly()
   const payload = userCreateInputSchema.partial().parse(patch)
-  const res = await http.put(`/users/${id}`, payload)
-  const parsed = userSchema.safeParse(res.data)
-  if (!parsed.success) {
-    throw new ApiContractError('Resposta da API fora do contrato.', parsed.error)
-  }
-  return parsed.data
+  return putValidated(http, `${BASE}/${id}`, payload, userSchema)
 }
 
 export async function deleteUser(id: string): Promise<void> {
-  assertNotSgbrOnly()
   const parsedId = z.string().min(1).parse(id)
-  await http.delete(`/users/${parsedId}`)
+  await http.delete(`${BASE}/${parsedId}`)
 }
-

@@ -9,25 +9,57 @@ import {
   Skeleton,
   Space,
   Table,
+  Tabs,
   Tag,
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import {
+  SwapOutlined,
+  CreditCardOutlined,
+  DollarOutlined,
+  InboxOutlined,
+  BuildOutlined,
+  ShoppingCartOutlined,
+  FundOutlined,
+} from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { Suspense, lazy, useMemo, useState } from 'react'
-import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { useSearchParams } from 'react-router-dom'
+import { ANALITICO_STALE_MS } from '../api/apiEnv'
+import { hasAnySources } from '../services/dataSourceService'
 import { PageHeaderCard } from '../components/PageHeaderCard'
-import { DatePresetRange } from '../components/DatePresetRange'
+
 import { MetricCard } from '../components/MetricCard'
 import { getFinanceOverview } from '../services/financeService'
 import { queryKeys } from '../query/queryKeys'
-import type { FinanceEntry } from '../mocks/finance'
+import type { FinanceEntry } from '../types/models'
 import { pctDelta, shiftRange } from '../utils/dateRange'
 import { financeRangeDefault } from '../utils/vendasAnaliticoAggregates'
 
 const FinanceFlowChart = lazy(() =>
   import('./charts/FinanceFlowChart').then((m) => ({ default: m.FinanceFlowChart })),
+)
+
+/* ── Lazy-load das abas de relatórios ── */
+const ConciliacaoTab = lazy(() =>
+  import('./finance/ConciliacaoTab').then((m) => ({ default: m.ConciliacaoTab })),
+)
+const ContasPagarTab = lazy(() =>
+  import('./finance/ContasPagarTab').then((m) => ({ default: m.ContasPagarTab })),
+)
+const ContasReceberTab = lazy(() =>
+  import('./finance/ContasReceberTab').then((m) => ({ default: m.ContasReceberTab })),
+)
+const EstoqueMateriaPrimaTab = lazy(() =>
+  import('./finance/EstoqueMateriaPrimaTab').then((m) => ({ default: m.EstoqueMateriaPrimaTab })),
+)
+const EstoqueEspumaTab = lazy(() =>
+  import('./finance/EstoqueEspumaTab').then((m) => ({ default: m.EstoqueEspumaTab })),
+)
+const VendasEspumaTab = lazy(() =>
+  import('./finance/VendasEspumaTab').then((m) => ({ default: m.VendasEspumaTab })),
 )
 
 function formatBRL(value: number) {
@@ -41,7 +73,9 @@ function amountTag(amount: number) {
 
 type FinanceTableRow = FinanceEntry & { runningBalance: number }
 
-export function FinancePage() {
+const tabFallback = <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 24 }} />
+
+function VisaoGeralTab() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<'all' | FinanceEntry['category']>('all')
   const [flowType, setFlowType] = useState<'all' | 'inflow' | 'outflow'>('all')
@@ -54,14 +88,14 @@ export function FinancePage() {
   ]
 
   const financeQuery = useQuery({
-    queryKey: SGBR_BI_ACTIVE
+    queryKey: hasAnySources()
       ? queryKeys.finance({ dtDe: effectiveFinanceRange[0], dtAte: effectiveFinanceRange[1] })
       : queryKeys.finance(),
     queryFn: () =>
-      SGBR_BI_ACTIVE
+      hasAnySources()
         ? getFinanceOverview({ dtDe: effectiveFinanceRange[0], dtAte: effectiveFinanceRange[1] })
         : getFinanceOverview(),
-    staleTime: SGBR_BI_ACTIVE ? SGBR_ANALITICO_STALE_MS : undefined,
+    staleTime: hasAnySources() ? ANALITICO_STALE_MS : undefined,
   })
 
   const data = financeQuery.data
@@ -74,7 +108,7 @@ export function FinancePage() {
       .filter((e) => {
         const textMatch =
           !query || e.id.toLowerCase().includes(query) || e.description.toLowerCase().includes(query)
-        if (SGBR_BI_ACTIVE) {
+        if (hasAnySources()) {
           return textMatch
         }
         const catMatch = category === 'all' || e.category === category
@@ -119,7 +153,7 @@ export function FinancePage() {
     return { receitas, despesas, saldo, margem, ticketMedioReceita, impostos, fixos, variaveis }
   }, [filteredEntries])
   const previousSummary = useMemo(() => {
-    if (SGBR_BI_ACTIVE) return null
+    if (hasAnySources()) return null
     const shifted = shiftRange(range?.[0], range?.[1])
     if (!shifted) return null
     const prev = entries.filter((e) => {
@@ -181,213 +215,137 @@ export function FinancePage() {
   ]
 
   return (
-    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
       {(financeQuery.isLoading || financeQuery.isFetching) && (
         <Card className="app-card" variant="borderless">
           <Skeleton active paragraph={{ rows: 10 }} />
         </Card>
       )}
-      <PageHeaderCard
-        title="Financeiro"
-        subtitle={
-          SGBR_BI_ACTIVE
-            ? `Somente campos retornados por vendas/analitico (${effectiveFinanceRange[0]} a ${effectiveFinanceRange[1]}). Receita = soma de total; custo = soma de precocustoitem × qtdevendida; lucro = receita − custo.`
-            : 'Controle completo por período com detalhamento de receitas, custos, impostos e saldo.'
-        }
-      />
 
-      {SGBR_BI_ACTIVE ? (
-        <Alert
-          type="info"
-          showIcon
-          title="Sem dados além da API analítica"
-          description={
+      <Card className="app-card no-hover" variant="borderless" title="Filtros">
+        <div className="filter-bar">
+          <div className="filter-item">
+            <span>Buscar</span>
+            <Input.Search
+              allowClear
+              placeholder="Descrição ou ID"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {!hasAnySources() ? (
             <>
-              Não há contas a pagar/receber nem categorias contábeis nesta resposta. Os cartões usam todas as linhas do
-              JSON; a tabela mostra no máximo 40 linhas para leitura. Não há comparativo com período anterior (a API não
-              devolve dois recortes de uma vez).
-            </>
-          }
-        />
-      ) : null}
-
-      <Card
-        className="app-card"
-        variant="borderless"
-        title={SGBR_BI_ACTIVE ? 'Período da consulta na API e busca na tabela' : 'Filtros financeiros'}
-      >
-        <Space wrap style={{ width: '100%' }}>
-          <Input.Search
-            allowClear
-            style={{ width: 300 }}
-            placeholder={
-              SGBR_BI_ACTIVE ? 'Buscar na amostra (descrição / id)' : 'Buscar por ID ou descrição'
-            }
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {!SGBR_BI_ACTIVE ? (
-            <>
-              <Select
-                value={category}
-                style={{ width: 220 }}
-                onChange={setCategory}
-                options={[
-                  { value: 'all', label: 'Todas as categorias' },
-                  { value: 'Receita', label: 'Receita' },
-                  { value: 'Custo Fixo', label: 'Custo Fixo' },
-                  { value: 'Custo Variável', label: 'Custo Variável' },
-                  { value: 'Imposto', label: 'Imposto' },
-                ]}
-              />
-              <Select
-                value={flowType}
-                style={{ width: 210 }}
-                onChange={setFlowType}
-                options={[
-                  { value: 'all', label: 'Entradas e saídas' },
-                  { value: 'inflow', label: 'Somente entradas' },
-                  { value: 'outflow', label: 'Somente saídas' },
-                ]}
-              />
+              <div className="filter-item">
+                <span>Categoria</span>
+                <Select
+                  value={category}
+                  style={{ width: 200 }}
+                  onChange={setCategory}
+                  options={[
+                    { value: 'all', label: 'Todas' },
+                    { value: 'Receita', label: 'Receita' },
+                    { value: 'Custo Fixo', label: 'Custo Fixo' },
+                    { value: 'Custo Variável', label: 'Custo Variável' },
+                    { value: 'Imposto', label: 'Imposto' },
+                  ]}
+                />
+              </div>
+              <div className="filter-item">
+                <span>Fluxo</span>
+                <Select
+                  value={flowType}
+                  style={{ width: 190 }}
+                  onChange={setFlowType}
+                  options={[
+                    { value: 'all', label: 'Entradas e saídas' },
+                    { value: 'inflow', label: 'Somente entradas' },
+                    { value: 'outflow', label: 'Somente saídas' },
+                  ]}
+                />
+              </div>
             </>
           ) : null}
-          <DatePicker.RangePicker
-            value={[dayjs(effectiveFinanceRange[0]), dayjs(effectiveFinanceRange[1])]}
-            onChange={(vals) => {
-              if (!vals || !vals[0] || !vals[1]) {
-                setRange(null)
-                return
-              }
-              setRange([vals[0].format('YYYY-MM-DD'), vals[1].format('YYYY-MM-DD')])
-            }}
-          />
-          <DatePresetRange
-            storageKey="date-preset:finance"
-            mode="finance"
-            onApply={(start, end) => {
-              setRange([start, end])
-            }}
-          />
-        </Space>
+          <div className="filter-item">
+            <span>Período</span>
+            <DatePicker.RangePicker
+              format="DD/MM/YYYY"
+              placeholder={['Data inicial', 'Data final']}
+              value={[dayjs(effectiveFinanceRange[0]), dayjs(effectiveFinanceRange[1])]}
+              onChange={(vals) => {
+                if (!vals || !vals[0] || !vals[1]) {
+                  setRange(null)
+                  return
+                }
+                setRange([vals[0].format('YYYY-MM-DD'), vals[1].format('YYYY-MM-DD')])
+              }}
+            />
+          </div>
+        </div>
       </Card>
 
-      {SGBR_BI_ACTIVE && data ? (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={6}>
-            <MetricCard title="Receita (Σ total)" value={formatBRL(data.receita)} />
+      <Row gutter={[12, 12]}>
+        <Col xs={12} sm={6}>
+          <MetricCard
+            title="Receita"
+            value={formatBRL(data?.receita ?? summary.receitas)}
+            accentColor="#10B981"
+            previousValue={previousSummary ? formatBRL(previousSummary.receitas) : undefined}
+            deltaPct={previousSummary ? pctDelta(summary.receitas, previousSummary.receitas) : undefined}
+          />
+        </Col>
+        <Col xs={12} sm={6}>
+          <MetricCard
+            title="Custos"
+            value={formatBRL(data?.custos ?? summary.despesas)}
+            accentColor="#F43F5E"
+            previousValue={previousSummary ? formatBRL(previousSummary.despesas) : undefined}
+            deltaPct={previousSummary ? pctDelta(summary.despesas, previousSummary.despesas) : undefined}
+          />
+        </Col>
+        <Col xs={12} sm={6}>
+          <MetricCard
+            title="Lucro"
+            value={formatBRL(data?.lucro ?? summary.saldo)}
+            accentColor={(data?.lucro ?? summary.saldo) >= 0 ? '#10B981' : '#F43F5E'}
+            previousValue={previousSummary ? formatBRL(previousSummary.saldo) : undefined}
+            deltaPct={previousSummary ? pctDelta(summary.saldo, previousSummary.saldo) : undefined}
+          />
+        </Col>
+        <Col xs={12} sm={6}>
+          <MetricCard
+            title="Margem"
+            value={`${(data?.margemPct ?? summary.margem).toFixed(1)}%`}
+            accentColor="#3B82F6"
+            previousValue={previousSummary ? `${previousSummary.margem.toFixed(1)}%` : undefined}
+            deltaPct={previousSummary ? summary.margem - previousSummary.margem : undefined}
+          />
+        </Col>
+      </Row>
+
+      {data?.linhasCount != null && (
+        <Row gutter={[12, 12]}>
+          <Col xs={12} sm={8}>
+            <MetricCard title="Registros" value={String(data.linhasCount)} />
           </Col>
-          <Col xs={24} sm={12} lg={6}>
+          <Col xs={12} sm={8}>
             <MetricCard
-              title="Custo ref. (Σ precocustoitem × qtdevendida)"
-              value={formatBRL(data.custos)}
+              title="Ticket medio"
+              value={formatBRL(data.linhasCount > 0 ? data.receita / data.linhasCount : 0)}
             />
           </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <MetricCard title="Lucro (receita − custo ref.)" value={formatBRL(data.lucro)} />
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <MetricCard title="Margem ((lucro/receita)×100)" value={`${data.margemPct.toFixed(1)}%`} />
-          </Col>
-        </Row>
-      ) : (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={6}>
-            <MetricCard
-              title="Receitas no período"
-              value={formatBRL(summary.receitas)}
-              previousValue={
-                previousSummary ? formatBRL(previousSummary.receitas) : undefined
-              }
-              deltaPct={
-                previousSummary ? pctDelta(summary.receitas, previousSummary.receitas) : undefined
-              }
-            />
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <MetricCard
-              title="Despesas no período"
-              value={formatBRL(summary.despesas)}
-              previousValue={
-                previousSummary ? formatBRL(previousSummary.despesas) : undefined
-              }
-              deltaPct={
-                previousSummary ? pctDelta(summary.despesas, previousSummary.despesas) : undefined
-              }
-            />
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <MetricCard
-              title="Saldo no período"
-              value={formatBRL(summary.saldo)}
-              previousValue={previousSummary ? formatBRL(previousSummary.saldo) : undefined}
-              deltaPct={previousSummary ? pctDelta(summary.saldo, previousSummary.saldo) : undefined}
-            />
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <MetricCard
-              title="Margem no período"
-              value={`${summary.margem.toFixed(1)}%`}
-              previousValue={
-                previousSummary ? `${previousSummary.margem.toFixed(1)}%` : undefined
-              }
-              deltaPct={previousSummary ? summary.margem - previousSummary.margem : undefined}
-            />
+          <Col xs={24} sm={8}>
+            <MetricCard title="Custo medio" value={formatBRL(data.linhasCount > 0 ? data.custos / data.linhasCount : 0)} />
           </Col>
         </Row>
       )}
 
-      {SGBR_BI_ACTIVE && data ? (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <MetricCard title="Linhas retornadas pela API" value={String(data.linhasCount ?? 0)} />
-          </Col>
-          <Col xs={24} md={12}>
-            <MetricCard
-              title="Ticket médio (receita ÷ linhas)"
-              value={formatBRL(
-                data.linhasCount && data.linhasCount > 0 ? data.receita / data.linhasCount : 0,
-              )}
-            />
-          </Col>
-        </Row>
-      ) : (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={8}>
-            <MetricCard title="Impostos" value={formatBRL(summary.impostos)} />
-          </Col>
-          <Col xs={24} md={8}>
-            <MetricCard title="Custos fixos" value={formatBRL(summary.fixos)} />
-          </Col>
-          <Col xs={24} md={8}>
-            <MetricCard title="Ticket médio de receita" value={formatBRL(summary.ticketMedioReceita)} />
-          </Col>
-        </Row>
-      )}
-
-      <Card
-        className="app-card"
-        variant="borderless"
-        title={
-          SGBR_BI_ACTIVE
-            ? 'Fluxo mensal (receita e custo ref. agregados por mês das linhas da API)'
-            : 'Fluxo financeiro mensal'
-        }
-      >
+      <Card className="app-card" variant="borderless" title="Fluxo mensal">
         <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
           <FinanceFlowChart data={data?.monthlyFlow ?? []} />
         </Suspense>
       </Card>
 
-      <Card
-        className="app-card quantum-table"
-        variant="borderless"
-        title={
-          SGBR_BI_ACTIVE
-            ? 'Amostra: até 40 linhas mais recentes (campo total da API)'
-            : 'Lançamentos financeiros detalhados'
-        }
-      >
+      <Card className="app-card quantum-table" variant="borderless" title="Lancamentos">
         <Table
           rowKey="id"
           columns={columns}
@@ -397,11 +355,115 @@ export function FinancePage() {
         />
       </Card>
 
-      <Typography.Text type="secondary">
-        {SGBR_BI_ACTIVE
-          ? 'Valores monetários vêm dos campos da resposta vendas/analitico; nada aqui substitui o módulo financeiro do ERP.'
-          : 'Visão por datas e centro de custos para análise operacional, tática e executiva do financeiro.'}
-      </Typography.Text>
+    </Space>
+  )
+}
+
+export function FinancePage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get('tab') ?? 'visao-geral'
+
+  const handleTabChange = (key: string) => {
+    setSearchParams({ tab: key }, { replace: true })
+  }
+
+  const tabItems = [
+    {
+      key: 'visao-geral',
+      label: 'Visão Geral',
+      icon: <FundOutlined />,
+      children: (
+        <Suspense fallback={tabFallback}>
+          <VisaoGeralTab />
+        </Suspense>
+      ),
+    },
+    {
+      key: 'conciliacao',
+      label: 'Conciliação',
+      icon: <SwapOutlined />,
+      children: (
+        <Suspense fallback={tabFallback}>
+          <ConciliacaoTab />
+        </Suspense>
+      ),
+    },
+    {
+      key: 'contas-pagar',
+      label: 'Contas a Pagar',
+      icon: <CreditCardOutlined />,
+      children: (
+        <Suspense fallback={tabFallback}>
+          <ContasPagarTab />
+        </Suspense>
+      ),
+    },
+    {
+      key: 'contas-receber',
+      label: 'Contas a Receber',
+      icon: <DollarOutlined />,
+      children: (
+        <Suspense fallback={tabFallback}>
+          <ContasReceberTab />
+        </Suspense>
+      ),
+    },
+    {
+      key: 'estoque-materia-prima',
+      label: 'Estoque Mat. Prima',
+      icon: <InboxOutlined />,
+      children: (
+        <Suspense fallback={tabFallback}>
+          <EstoqueMateriaPrimaTab />
+        </Suspense>
+      ),
+    },
+    {
+      key: 'estoque-espuma',
+      label: 'Estoque Espuma/Aglom.',
+      icon: <BuildOutlined />,
+      children: (
+        <Suspense fallback={tabFallback}>
+          <EstoqueEspumaTab />
+        </Suspense>
+      ),
+    },
+    {
+      key: 'vendas-espuma',
+      label: 'Vendas Espuma/Aglom.',
+      icon: <ShoppingCartOutlined />,
+      children: (
+        <Suspense fallback={tabFallback}>
+          <VendasEspumaTab />
+        </Suspense>
+      ),
+    },
+  ]
+
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <PageHeaderCard
+        title="Financeiro"
+        subtitle="Controle financeiro completo: visão geral, conciliação, contas, estoque e vendas."
+      />
+
+      <Card className="app-card no-hover" variant="borderless" style={{ padding: 0 }}>
+        <Tabs
+          className="finance-tabs"
+          activeKey={activeTab}
+          onChange={handleTabChange}
+          type="card"
+          size="large"
+          items={tabItems.map((item) => ({
+            ...item,
+            label: (
+              <span>
+                {item.icon} {item.label}
+              </span>
+            ),
+          }))}
+        />
+      </Card>
     </Space>
   )
 }

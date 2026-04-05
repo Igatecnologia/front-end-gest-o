@@ -1,16 +1,24 @@
-export type DashboardSharePermission = 'view' | 'edit'
+import { z } from 'zod'
 
-export type DashboardShareEntry = {
-  id: string
-  target: string
-  permission: DashboardSharePermission
-  createdAt: string
-}
+const dashboardShareEntrySchema = z.object({
+  id: z.string(),
+  target: z.string(),
+  permission: z.enum(['view', 'edit']),
+  createdAt: z.string(),
+})
 
-export type DashboardPrefs = {
-  favorite: boolean
-  shares: DashboardShareEntry[]
-}
+const dashboardPrefsSchema = z.object({
+  favorite: z.boolean(),
+  shares: z.array(dashboardShareEntrySchema),
+})
+
+export type DashboardSharePermission = z.infer<typeof dashboardShareEntrySchema>['permission']
+
+export type DashboardShareEntry = z.infer<typeof dashboardShareEntrySchema>
+
+export type DashboardPrefs = z.infer<typeof dashboardPrefsSchema>
+
+const DEFAULT_PREFS: DashboardPrefs = { favorite: false, shares: [] }
 
 const KEY = 'app.dashboard.prefs.v1'
 
@@ -21,14 +29,11 @@ function uid() {
 export function getDashboardPrefs(): DashboardPrefs {
   try {
     const raw = window.localStorage.getItem(KEY)
-    if (!raw) return { favorite: false, shares: [] }
-    const parsed = JSON.parse(raw) as DashboardPrefs
-    return {
-      favorite: Boolean(parsed.favorite),
-      shares: Array.isArray(parsed.shares) ? parsed.shares : [],
-    }
+    if (!raw) return DEFAULT_PREFS
+    const parsed = dashboardPrefsSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : DEFAULT_PREFS
   } catch {
-    return { favorite: false, shares: [] }
+    return DEFAULT_PREFS
   }
 }
 

@@ -1,11 +1,17 @@
-export type UserSavedFilter = {
-  id: string
-  userId: string
-  page: 'reports'
-  name: string
-  params: string
-  createdAt: string
-}
+import { z } from 'zod'
+
+const userSavedFilterSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  page: z.literal('reports'),
+  name: z.string(),
+  params: z.string(),
+  createdAt: z.string(),
+})
+
+const storeSchema = z.array(userSavedFilterSchema)
+
+export type UserSavedFilter = z.infer<typeof userSavedFilterSchema>
 
 const KEY = 'app.user.savedFilters.v1'
 
@@ -17,7 +23,8 @@ function readAll(): UserSavedFilter[] {
   try {
     const raw = window.localStorage.getItem(KEY)
     if (!raw) return []
-    return JSON.parse(raw) as UserSavedFilter[]
+    const parsed = storeSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : []
   } catch {
     return []
   }

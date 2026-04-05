@@ -1,19 +1,18 @@
 import { getValidated } from '../api/validatedHttp'
 import { vendasAnaliticoResponseSchema } from '../api/schemas'
-import { sgbrBiHttp } from './sgbrBiHttp'
+import { http } from './http'
 
-/** Converte `YYYY-MM-DD` para `YYYY.MM.DD` (formato esperado pela API). */
+/** Converte `YYYY-MM-DD` para `YYYY.MM.DD` */
 export function toSgbrBiDateParam(isoDay: string): string {
   return isoDay.replaceAll('-', '.')
 }
 
+/**
+ * Busca dados de vendas via backend proxy.
+ * O backend le a config da fonte e chama a API do cliente.
+ */
 export async function getVendasAnalitico(params: { dtDe: string; dtAte: string }) {
-  if (!sgbrBiHttp) {
-    throw new Error(
-      'SGBR BI desativado: defina VITE_SGBR_BI_BASE_URL (ex.: proxy em dev ou URL absoluta em produção).',
-    )
-  }
-  return getValidated(sgbrBiHttp, '/sgbrbi/vendas/analitico', vendasAnaliticoResponseSchema, {
+  return getValidated(http, '/api/proxy/data', vendasAnaliticoResponseSchema, {
     params: {
       dt_de: toSgbrBiDateParam(params.dtDe),
       dt_ate: toSgbrBiDateParam(params.dtAte),

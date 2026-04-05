@@ -1,4 +1,4 @@
-import { Card, Col, DatePicker, Input, Row, Select, Space, Table, Tag, Typography } from 'antd'
+import { Alert, Card, Col, DatePicker, Empty, Input, Row, Select, Skeleton, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
@@ -6,12 +6,13 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { DatePresetRange } from '../components/DatePresetRange'
-import { SGBR_ANALITICO_STALE_MS, SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { ANALITICO_STALE_MS } from '../api/apiEnv'
+import { hasAnySources } from '../services/dataSourceService'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
-import type { DashboardMock } from '../mocks/dashboard'
+import type { DashboardData } from '../types/models'
 
-type LatestRow = DashboardMock['latest'][number]
+type LatestRow = DashboardData['latest'][number]
 
 function formatBRL(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -35,7 +36,7 @@ export function DashboardDataPage() {
   const dashboardQuery = useQuery({
     queryKey: queryKeys.dashboard({ period }),
     queryFn: () => getDashboardData({ delayMs: 700, period }),
-    staleTime: SGBR_BI_ACTIVE ? SGBR_ANALITICO_STALE_MS : undefined,
+    staleTime: hasAnySources() ? ANALITICO_STALE_MS : undefined,
   })
 
   const rows = useMemo(() => {
@@ -84,7 +85,7 @@ export function DashboardDataPage() {
       <PageHeaderCard
         title="Dados detalhados"
         subtitle={
-          SGBR_BI_ACTIVE
+          hasAnySources()
             ? 'Resumo de linhas de venda (últimos lançamentos) derivado da API SGBR. Detalhe linha a linha: Vendas analítico.'
             : 'Tabela operacional com ordenação, filtros e totais consolidados.'
         }
@@ -146,6 +147,8 @@ export function DashboardDataPage() {
           <Col xs={24} md={7}>
             <DatePicker.RangePicker
               style={{ width: '100%' }}
+              format="DD/MM/YYYY"
+              placeholder={['Data inicial', 'Data final']}
               onChange={(vals) => {
                 setSearchParams((prev) => {
                   const p = new URLSearchParams(prev)
@@ -175,21 +178,39 @@ export function DashboardDataPage() {
         </Row>
       </Card>
 
-      <Card className="app-card quantum-table" variant="borderless" title="Pedidos">
-        <Space wrap style={{ marginBottom: 12 }}>
-          <Tag color="blue">Total: {formatBRL(totals.total)}</Tag>
-          <Tag color="green">Pagos: {totals.byStatus.pago}</Tag>
-          <Tag color="gold">Pendentes: {totals.byStatus.pendente}</Tag>
-          <Tag color="red">Cancelados: {totals.byStatus.cancelado}</Tag>
-        </Space>
-        <Table
-          aria-label="Tabela de pedidos detalhados"
-          rowKey="id"
-          columns={columns}
-          dataSource={rows}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
+      {dashboardQuery.isLoading ? (
+        <Card className="app-card" variant="borderless">
+          <Skeleton active paragraph={{ rows: 8 }} />
+        </Card>
+      ) : dashboardQuery.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          message="Nao foi possivel carregar os dados"
+          description="Verifique sua conexao e tente novamente."
+          action={<button onClick={() => dashboardQuery.refetch()}>Tentar novamente</button>}
         />
-      </Card>
+      ) : !rows.length ? (
+        <Card className="app-card" variant="borderless">
+          <Empty description="Nenhum registro encontrado para os filtros aplicados" />
+        </Card>
+      ) : (
+        <Card className="app-card quantum-table" variant="borderless" title="Pedidos">
+          <Space wrap style={{ marginBottom: 12 }}>
+            <Tag color="blue">Total: {formatBRL(totals.total)}</Tag>
+            <Tag color="green">Pagos: {totals.byStatus.pago}</Tag>
+            <Tag color="gold">Pendentes: {totals.byStatus.pendente}</Tag>
+            <Tag color="red">Cancelados: {totals.byStatus.cancelado}</Tag>
+          </Space>
+          <Table
+            aria-label="Tabela de pedidos detalhados"
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            pagination={{ pageSize: 10, showSizeChanger: false }}
+          />
+        </Card>
+      )}
 
       <Typography.Text type="secondary">
         Essa tela foi criada para visualização operacional limpa, separada das análises avançadas.

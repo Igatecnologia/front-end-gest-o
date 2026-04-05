@@ -1,16 +1,14 @@
+import { tenantStorage } from '../tenant/tenantStorage'
+
 export type AppThemeMode = 'light' | 'dark'
 
-export const THEME_STORAGE_KEY = 'app.theme.mode'
+const THEME_KEY = 'theme.mode'
 
 export function getStoredThemeMode(): AppThemeMode {
-  const raw =
-    typeof window !== 'undefined'
-      ? window.localStorage.getItem(THEME_STORAGE_KEY)
-      : null
+  const raw = typeof window !== 'undefined' ? tenantStorage.getItem(THEME_KEY) : null
   return raw === 'dark' ? 'dark' : 'light'
 }
 
 export function setStoredThemeMode(mode: AppThemeMode) {
-  window.localStorage.setItem(THEME_STORAGE_KEY, mode)
+  tenantStorage.setItem(THEME_KEY, mode)
 }
-

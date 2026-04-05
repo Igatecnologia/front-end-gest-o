@@ -1,17 +1,13 @@
-import { sleep } from '../utils/sleep'
-import { sha256Hex } from '../utils/sha256Hex'
 import type { AuthSession } from '../auth/authStorage'
-import { listUsers } from './usersService'
-import { usersSeed } from '../mocks/users'
-import { AUTH_BACKEND } from '../api/apiEnv'
 import { postValidated } from '../api/validatedHttp'
-import { sgbrUsuarioLoginResponseSchema } from '../api/schemas'
+import { localLoginResponseSchema, sgbrUsuarioLoginResponseSchema } from '../api/schemas'
 import { getErrorMessage } from '../api/httpError'
-import { sgbrBiHttp } from './sgbrBiHttp'
+import { http } from './http'
+import { getAuthDataSource } from './dataSourceService'
 
 type SignInInput = { email: string; password: string }
 
-const ADMIN_PERMISSIONS: AuthSession['permissions'] = [
+const ALL_PERMISSIONS: AuthSession['permissions'] = [
   'dashboard:view',
   'reports:view',
   'reports:export',
@@ -19,80 +15,78 @@ const ADMIN_PERMISSIONS: AuthSession['permissions'] = [
   'audit:export',
   'users:view',
   'users:write',
+  'producao:view',
+  'producao:write',
+  'fichatecnica:view',
+  'fichatecnica:write',
+  'comercial:view',
+  'comercial:write',
+  'estoque:view',
+  'estoque:write',
+  'alertas:view',
 ]
 
-async function signInMock(input: SignInInput): Promise<AuthSession> {
-  await sleep(600)
-
-  const email = input.email.trim().toLowerCase()
-  const password = input.password
-
-  const users = await (async () => {
-    if (typeof window === 'undefined') return usersSeed
-    try {
-      return await listUsers()
-    } catch {
-      return usersSeed
-    }
-  })()
-
-  const user = users.find((u) => u.email === email && u.status === 'active') ?? null
-  if (!user || user.password !== password) throw new Error('E-mail ou senha inválidos.')
-
-  const role = user.role
-  const permissionsByRole: Record<typeof role, AuthSession['permissions']> = {
-    admin: ADMIN_PERMISSIONS,
-    manager: ['dashboard:view', 'reports:view', 'reports:export', 'audit:view', 'users:view'],
-    viewer: ['dashboard:view', 'reports:view'],
-  }
-
-  return {
-    token: `mock-jwt-token:${user.id}`,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role,
-    },
-    permissions: permissionsByRole[role],
-  }
-}
-
-async function signInSgbrBi(input: SignInInput): Promise<AuthSession> {
-  if (!sgbrBiHttp) {
-    throw new Error(
-      'SGBR BI desativado: em dev use VITE_SGBR_BI_BASE_URL=proxy (recomendado) ou a URL do servidor.',
-    )
-  }
-
+/**
+ * Tenta login local (usuarios do proprio sistema).
+ * Se falhar com 401, e houver fonte SGBR configurada como auth, tenta via proxy.
+ */
+export async function signIn(input: SignInInput): Promise<AuthSession> {
   const login = input.email.trim()
-  if (!login) throw new Error('Informe o usuário.')
+  if (!login) throw new Error('Informe o usuario.')
 
-  const senha = await sha256Hex(input.password)
-
+  // 1. Tenta login local
   try {
-    const data = await postValidated(sgbrBiHttp, '/sgbrbi/usuario/login', { login, senha }, sgbrUsuarioLoginResponseSchema)
-
-    const email = data.email?.trim() || `${data.nome_usuario}@sgbr.local`
+    const data = await postValidated(
+      http,
+      '/api/v1/auth/login',
+      { email: login, password: input.password },
+      localLoginResponseSchema,
+    )
 
     return {
       token: data.token,
-      user: {
-        id: String(data.id_usuario),
-        name: data.nome_usuario,
-        email,
-        role: 'admin',
-      },
-      permissions: ADMIN_PERMISSIONS,
+      user: data.user,
+      permissions: ALL_PERMISSIONS,
     }
-  } catch (err) {
-    throw new Error(getErrorMessage(err, 'Falha ao autenticar no SGBR BI.'))
-  }
-}
+  } catch (localErr) {
+    // Se não for 401, é erro de servidor — lança direto
+    const is401 =
+      localErr instanceof Error &&
+      (localErr.message.includes('401') || localErr.message.includes('incorretos'))
 
-export async function signIn(input: SignInInput): Promise<AuthSession> {
-  if (AUTH_BACKEND === 'sgbrbi') {
-    return signInSgbrBi(input)
+    if (!is401) {
+      throw new Error(getErrorMessage(localErr, 'Falha ao fazer login.'))
+    }
+
+    // 2. Se houver fonte SGBR marcada como auth, tenta via proxy
+    const authSource = getAuthDataSource()
+    if (authSource) {
+      try {
+        const data = await postValidated(
+          http,
+          '/api/proxy/login',
+          { login, password: input.password },
+          sgbrUsuarioLoginResponseSchema,
+        )
+
+        const email = data.email?.trim() || `${data.nome_usuario}@local`
+
+        return {
+          token: data.token,
+          user: {
+            id: String(data.id_usuario),
+            name: data.nome_usuario,
+            email,
+            role: 'admin',
+          },
+          permissions: ALL_PERMISSIONS,
+        }
+      } catch (sgbrErr) {
+        throw new Error(getErrorMessage(sgbrErr, 'Usuario ou senha incorretos.'))
+      }
+    }
+
+    // Sem fonte SGBR — erro do login local
+    throw new Error(getErrorMessage(localErr, 'Usuario ou senha incorretos.'))
   }
-  return signInMock(input)
 }

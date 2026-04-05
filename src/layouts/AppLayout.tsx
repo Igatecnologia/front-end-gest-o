@@ -1,15 +1,22 @@
 import {
-  DotChartOutlined,
+  AlertOutlined,
+  AppstoreOutlined,
   BarChartOutlined,
+  DashboardOutlined,
+  DatabaseOutlined,
   DollarOutlined,
+  DotChartOutlined,
+  ExperimentOutlined,
   FileSearchOutlined,
   FileTextOutlined,
+  HomeOutlined,
   MenuOutlined,
   MoonOutlined,
+  ProfileOutlined,
   ShoppingCartOutlined,
   SunOutlined,
-  TeamOutlined,
   TableOutlined,
+  TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import {
@@ -30,8 +37,8 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { hasPermission } from '../auth/permissions'
 import { useAppTheme } from '../theme/ThemeContext'
-import { publicAssetUrl } from '../utils/publicAssetUrl'
-import { SGBR_BI_ACTIVE, getAppEnvBadge } from '../api/apiEnv'
+import { useTenant } from '../tenant/TenantContext'
+import { getAppEnvBadge } from '../api/apiEnv'
 
 const { Header, Sider, Content } = Layout
 
@@ -44,13 +51,31 @@ function useSelectedMenuKey(pathname: string) {
     if (pathname.startsWith('/relatorios')) return 'relatorios'
     if (pathname.startsWith('/usuarios')) return 'usuarios'
     if (pathname.startsWith('/auditoria')) return 'auditoria'
+    if (pathname.startsWith('/producao')) return 'producao'
+    if (pathname.startsWith('/ficha-tecnica')) return 'ficha-tecnica'
+    if (pathname.startsWith('/comercial')) return 'comercial'
+    if (pathname.startsWith('/operacional')) return 'operacional'
+    if (pathname.startsWith('/alertas')) return 'alertas'
+    if (pathname.startsWith('/fontes-de-dados')) return 'fontes-de-dados'
     return 'dashboard'
   }, [pathname])
+}
+
+/** Detecta qual grupo do sidebar deve estar aberto baseado na rota */
+function useOpenSubMenuKeys(selectedKey: string) {
+  return useMemo(() => {
+    if (selectedKey.startsWith('dashboard') || selectedKey === 'operacional' || selectedKey === 'alertas') return ['sub-dashboard']
+    if (selectedKey === 'producao' || selectedKey === 'ficha-tecnica' || selectedKey === 'comercial') return ['sub-erp']
+    if (selectedKey === 'financeiro' || selectedKey === 'relatorios') return ['sub-analytics']
+    if (['usuarios', 'auditoria', 'fontes-de-dados'].includes(selectedKey)) return ['sub-admin']
+    return ['sub-dashboard']
+  }, [selectedKey])
 }
 
 export function AppLayout() {
   const location = useLocation()
   const selectedKey = useSelectedMenuKey(location.pathname)
+  const defaultOpenKeys = useOpenSubMenuKeys(selectedKey)
   const [collapsed, setCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const { mode, toggle } = useAppTheme()
@@ -58,86 +83,76 @@ export function AppLayout() {
   const { token } = theme.useToken()
   const screens = Grid.useBreakpoint()
   const navigate = useNavigate()
+  const tenant = useTenant()
   const envBadge = useMemo(() => getAppEnvBadge(), [])
 
+  /* ── Sub-menus colapsáveis ── */
   const navItems = useMemo(() => {
     const items: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
-    const dashboardChildren: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
-    const analyticsChildren: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
-    const adminChildren: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
 
     if (hasPermission(session, 'dashboard:view')) {
-      dashboardChildren.push({
-        key: 'dashboard',
+      items.push({
+        key: 'sub-dashboard',
         icon: <BarChartOutlined />,
-        label: <Link to="/dashboard">Visão geral</Link>,
+        label: 'Dashboard',
+        children: [
+          { key: 'dashboard', icon: <HomeOutlined />, label: <Link to="/dashboard">Visão geral</Link> },
+          { key: 'dashboard-analises', icon: <DotChartOutlined />, label: <Link to="/dashboard/analises">Análises BI</Link> },
+          { key: 'dashboard-dados', icon: <TableOutlined />, label: <Link to="/dashboard/dados">Dados detalhados</Link> },
+          { key: 'dashboard-vendas-analitico', icon: <ShoppingCartOutlined />, label: <Link to="/dashboard/vendas-analitico">Vendas analítico</Link> },
+          { key: 'operacional', icon: <DashboardOutlined />, label: <Link to="/operacional">Operacional</Link> },
+          { key: 'alertas', icon: <AlertOutlined />, label: <Link to="/alertas">Alertas</Link> },
+        ],
       })
-      dashboardChildren.push({
-        key: 'dashboard-analises',
-        icon: <DotChartOutlined />,
-        label: <Link to="/dashboard/analises">Análises BI</Link>,
-      })
-      dashboardChildren.push({
-        key: 'dashboard-dados',
-        icon: <TableOutlined />,
-        label: <Link to="/dashboard/dados">Dados detalhados</Link>,
-      })
-      dashboardChildren.push({
-        key: 'dashboard-vendas-analitico',
-        icon: <ShoppingCartOutlined />,
-        label: <Link to="/dashboard/vendas-analitico">Vendas analítico</Link>,
-      })
+    }
+
+    {
+      const erpChildren: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
+      if (hasPermission(session, 'producao:view')) {
+        erpChildren.push({ key: 'producao', icon: <ExperimentOutlined />, label: <Link to="/producao">Produção</Link> })
+      }
+      if (hasPermission(session, 'fichatecnica:view')) {
+        erpChildren.push({ key: 'ficha-tecnica', icon: <ProfileOutlined />, label: <Link to="/ficha-tecnica">Ficha Técnica</Link> })
+      }
+      if (hasPermission(session, 'comercial:view')) {
+        erpChildren.push({ key: 'comercial', icon: <ShoppingCartOutlined />, label: <Link to="/comercial">Comercial</Link> })
+      }
+      if (erpChildren.length) {
+        items.push({
+          key: 'sub-erp',
+          icon: <AppstoreOutlined />,
+          label: 'ERP / Produção',
+          children: erpChildren,
+        })
+      }
     }
 
     if (hasPermission(session, 'reports:view')) {
-      analyticsChildren.push({
-        key: 'financeiro',
+      items.push({
+        key: 'sub-analytics',
         icon: <DollarOutlined />,
-        label: <Link to="/financeiro">Financeiro</Link>,
-      })
-      analyticsChildren.push({
-        key: 'relatorios',
-        icon: <FileTextOutlined />,
-        label: <Link to="/relatorios">Relatórios</Link>,
-      })
-    }
-
-    if (!SGBR_BI_ACTIVE && hasPermission(session, 'users:view')) {
-      adminChildren.push({
-        key: 'usuarios',
-        icon: <TeamOutlined />,
-        label: <Link to="/usuarios">Usuários</Link>,
+        label: 'Financeiro',
+        children: [
+          { key: 'financeiro', icon: <DollarOutlined />, label: <Link to="/financeiro">Visão Financeira</Link> },
+          { key: 'relatorios', icon: <FileTextOutlined />, label: <Link to="/relatorios">Relatórios</Link> },
+        ],
       })
     }
 
-    if (!SGBR_BI_ACTIVE && hasPermission(session, 'audit:view')) {
-      adminChildren.push({
-        key: 'auditoria',
-        icon: <FileSearchOutlined />,
-        label: <Link to="/auditoria">Auditoria</Link>,
-      })
+    const adminChildren: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
+    if (hasPermission(session, 'users:view')) {
+      adminChildren.push({ key: 'usuarios', icon: <TeamOutlined />, label: <Link to="/usuarios">Usuários</Link> })
     }
-
-    if (dashboardChildren.length) {
-      items.push({
-        key: 'group-dashboard',
-        type: 'group',
-        label: 'Dashboard',
-        children: dashboardChildren,
-      })
+    if (hasPermission(session, 'audit:view')) {
+      adminChildren.push({ key: 'auditoria', icon: <FileSearchOutlined />, label: <Link to="/auditoria">Auditoria</Link> })
     }
-    if (analyticsChildren.length) {
-      items.push({
-        key: 'group-analytics',
-        type: 'group',
-        label: 'Análises e Relatórios',
-        children: analyticsChildren,
-      })
+    if (session?.user.role === 'admin') {
+      adminChildren.push({ key: 'fontes-de-dados', icon: <DatabaseOutlined />, label: <Link to="/fontes-de-dados">Fontes de Dados</Link> })
     }
     if (adminChildren.length) {
       items.push({
-        key: 'group-admin',
-        type: 'group',
+        key: 'sub-admin',
+        icon: <TeamOutlined />,
         label: 'Administração',
         children: adminChildren,
       })
@@ -145,6 +160,25 @@ export function AppLayout() {
 
     return items
   }, [session])
+
+  /* ── Bottom nav items (mobile) — apenas os principais ── */
+  const bottomNavItems = useMemo(() => {
+    const items: { key: string; icon: React.ReactNode; label: string; path: string }[] = []
+    if (hasPermission(session, 'dashboard:view')) {
+      items.push({ key: 'dashboard', icon: <BarChartOutlined />, label: 'Dashboard', path: '/dashboard' })
+    }
+    if (hasPermission(session, 'reports:view')) {
+      items.push({ key: 'financeiro', icon: <DollarOutlined />, label: 'Financeiro', path: '/financeiro' })
+      items.push({ key: 'relatorios', icon: <FileTextOutlined />, label: 'Relatórios', path: '/relatorios' })
+    }
+    return items
+  }, [session])
+
+  /** Qual key do bottom nav está ativa */
+  const activeBottomKey = useMemo(() => {
+    if (selectedKey.startsWith('dashboard')) return 'dashboard'
+    return selectedKey
+  }, [selectedKey])
 
   return (
     <Layout className="app-shell" style={{ minHeight: '100vh' }}>
@@ -186,22 +220,15 @@ export function AppLayout() {
           <div className="app-sider-brand">
             <Space size={10} align="center">
               <img
-                src={publicAssetUrl('logo.png.png')}
-                alt="IGA"
+                src={tenant.logoUrl}
+                alt={tenant.companyName}
                 className="app-sider-logo"
               />
               {!collapsed && (
                 <div style={{ lineHeight: 1.1 }}>
-                  <Typography.Text
-                    style={{
-                      color:
-                        mode === 'dark'
-                          ? 'color-mix(in srgb, var(--qc-text) 92%, transparent)'
-                          : token.colorText,
-                    }}
-                  >
-                    IGA
-                  </Typography.Text>
+                  <span className="app-sider-brand-name" style={{ color: token.colorText }}>
+                    {tenant.companyName}
+                  </span>
                   <br />
                   <Typography.Text
                     style={{
@@ -212,7 +239,7 @@ export function AppLayout() {
                       fontSize: 12,
                     }}
                   >
-                    Gestão e Análise de Dados
+                    {tenant.subtitle}
                   </Typography.Text>
                 </div>
               )}
@@ -224,6 +251,7 @@ export function AppLayout() {
             theme={mode === 'dark' ? 'dark' : 'light'}
             mode="inline"
             selectedKeys={[selectedKey]}
+            defaultOpenKeys={collapsed ? [] : defaultOpenKeys}
             items={navItems}
             style={{ background: 'transparent', borderInlineEnd: 0 }}
           />
@@ -242,6 +270,7 @@ export function AppLayout() {
             theme={mode === 'dark' ? 'dark' : 'light'}
             mode="inline"
             selectedKeys={[selectedKey]}
+            defaultOpenKeys={defaultOpenKeys}
             items={navItems}
             onClick={() => setMobileNavOpen(false)}
             style={{ borderInlineEnd: 0 }}
@@ -273,19 +302,21 @@ export function AppLayout() {
           >
             <Space align="center" size={10}>
               <Typography.Title level={5} style={{ margin: 0 }}>
-                {selectedKey === 'relatorios'
-                  ? 'Relatórios'
-                  : selectedKey === 'financeiro'
-                    ? 'Financeiro'
-                  : selectedKey === 'usuarios'
-                    ? 'Usuários'
-                    : selectedKey === 'auditoria'
-                      ? 'Auditoria'
-                      : selectedKey === 'dashboard-analises'
-                        ? 'Análises BI'
-                        : selectedKey === 'dashboard-dados'
-                          ? 'Dados detalhados'
-                          : 'Dashboard'}
+                {{
+                  relatorios: 'Relatórios',
+                  financeiro: 'Financeiro',
+                  usuarios: 'Usuários',
+                  auditoria: 'Auditoria',
+                  'dashboard-analises': 'Análises BI',
+                  'dashboard-dados': 'Dados detalhados',
+                  'dashboard-vendas-analitico': 'Vendas Analítico',
+                  producao: 'Produção',
+                  'ficha-tecnica': 'Ficha Técnica',
+                  comercial: 'Comercial',
+                  operacional: 'Dashboard Operacional',
+                  alertas: 'Alertas',
+                  'fontes-de-dados': 'Conexoes',
+                }[selectedKey] ?? 'Dashboard'}
               </Typography.Title>
               {envBadge ? (
                 <Tag color={envBadge.color} style={{ margin: 0 }}>
@@ -352,6 +383,8 @@ export function AppLayout() {
           style={{
             background: token.colorBgLayout,
             padding: 0,
+            /* Espaço para o bottom nav no mobile */
+            paddingBottom: screens.xs ? 64 : 0,
           }}
         >
           <div className="app-content">
@@ -360,8 +393,34 @@ export function AppLayout() {
             </div>
           </div>
         </Content>
+
+        {/* ── Bottom Navigation Mobile ── */}
+        {screens.xs && bottomNavItems.length > 0 ? (
+          <nav className="app-bottom-nav" aria-label="Navegação principal mobile">
+            {bottomNavItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`app-bottom-nav-item${activeBottomKey === item.key ? ' active' : ''}`}
+                onClick={() => navigate(item.path)}
+                aria-current={activeBottomKey === item.key ? 'page' : undefined}
+              >
+                <span className="app-bottom-nav-icon">{item.icon}</span>
+                <span className="app-bottom-nav-label">{item.label}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className="app-bottom-nav-item"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Mais opções"
+            >
+              <span className="app-bottom-nav-icon"><MenuOutlined /></span>
+              <span className="app-bottom-nav-label">Mais</span>
+            </button>
+          </nav>
+        ) : null}
       </Layout>
     </Layout>
   )
 }
-

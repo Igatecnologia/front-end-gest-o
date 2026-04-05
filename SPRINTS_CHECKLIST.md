@@ -159,80 +159,80 @@ Este checklist é a “Fonte da Verdade” para evoluir o produto até um **Admi
 > Não está vinculada exclusivamente a uma empresa específica.
 
 ### 🧩 1) Fluxo ponta a ponta (Fonte da Verdade)
-- [ ] Mapear fluxo completo: Compra de matéria-prima -> Estoque insumos -> Produção de blocos -> Ficha técnica -> Estoque produto base -> Pedido -> OP -> Baixa m3 -> Faturamento -> Financeiro -> Recebimento -> Dashboards
-- [ ] Definir pontos de entrada/saída por etapa (quem lança, quando lança, qual evidência)
-- [ ] Definir status operacionais por etapa (pendente, em produção, faturado, recebido)
-- [ ] Definir trilha de auditoria mínima por evento crítico
+- [x] Mapear fluxo completo: Compra de matéria-prima -> Estoque insumos -> Produção de blocos -> Ficha técnica -> Estoque produto base -> Pedido -> OP -> Baixa m3 -> Faturamento -> Financeiro -> Recebimento -> Dashboards
+- [x] Definir pontos de entrada/saída por etapa (quem lança, quando lança, qual evidência)
+- [x] Definir status operacionais por etapa (pendente, em produção, faturado, recebido)
+- [x] Definir trilha de auditoria mínima por evento crítico
 
 ### 🏭 2) Processo produtivo (detalhado)
-- [ ] Matéria-prima: entrada de compra com classificação (Produção vs Despesa Operacional)
-- [ ] Produção: cadastrar bloco de espuma com tipo, densidade e volume total (m3)
-- [ ] Regra crítica: bloquear conclusão de lote sem volume, tipo e densidade
-- [ ] Produção por lote/período com custo por lote e rendimento
+- [x] Matéria-prima: entrada de compra com classificação (Produção vs Despesa Operacional)
+- [x] Produção: cadastrar bloco de espuma com tipo, densidade e volume total (m3)
+- [x] Regra crítica: bloquear conclusão de lote sem volume, tipo e densidade
+- [x] Produção por lote/período com custo por lote e rendimento
 
 ### 📐 3) Ficha técnica (base de custo)
-- [ ] Cadastro de dimensões (altura x largura x comprimento)
-- [ ] Conversão automática para m3 por item e por pedido
-- [ ] Consumo de matéria-prima por produto
-- [ ] Custo estimado por produto e por m3
-- [ ] Validação de consistência (dimensões > 0, densidade válida, unidade padrão m3)
+- [x] Cadastro de dimensões (altura x largura x comprimento)
+- [x] Conversão automática para m3 por item e por pedido
+- [x] Consumo de matéria-prima por produto
+- [x] Custo estimado por produto e por m3
+- [x] Validação de consistência (dimensões > 0, densidade válida, unidade padrão m3)
 
 ### 📦 4) Estoque (ponto crítico)
-- [ ] Estoque em 2 níveis: Insumos e Produto Base (espuma em m3)
-- [ ] Entrada de insumos por compra
-- [ ] Baixa de insumos na produção
-- [ ] Entrada de produto base após produção
-- [ ] Baixa de produto base por consumo em vendas/OP
-- [ ] Dashboard de estoque: saldo atual (m3), giro, produtos parados, estoque crítico
+- [x] Estoque em 2 níveis: Insumos e Produto Base (espuma em m3)
+- [x] Entrada de insumos por compra
+- [x] Baixa de insumos na produção
+- [x] Entrada de produto base após produção
+- [x] Baixa de produto base por consumo em vendas/OP
+- [x] Dashboard de estoque: saldo atual (m3), giro, produtos parados, estoque crítico
 
 ### 🛒 5) Comercial + OP + Faturamento
-- [ ] Pedido do cliente com total de peças e total em m3
-- [ ] OP agrupando pedidos e convertendo consumo total em m3
-- [ ] Baixa automática de estoque ao confirmar OP
-- [ ] Faturamento via NF-e ou nota manual (pedido)
-- [ ] Conciliação pedido x produzido x faturado
+- [x] Pedido do cliente com total de peças e total em m3
+- [x] OP agrupando pedidos e convertendo consumo total em m3
+- [x] Baixa automática de estoque ao confirmar OP
+- [x] Faturamento via NF-e ou nota manual (pedido)
+- [x] Conciliação pedido x produzido x faturado
 
 ### 💰 6) Financeiro (caixa, pagar, receber)
-- [ ] Venda à vista (dinheiro/PIX) com entrada automática no caixa
-- [ ] Venda a prazo (boleto/cartão) gerando contas a receber
-- [ ] Baixa posterior de recebimentos e controle de inadimplência
-- [ ] Compras gerando contas a pagar
-- [ ] Classificação financeira: matéria-prima, despesas operacionais, outros
+- [x] Venda à vista (dinheiro/PIX) com entrada automática no caixa
+- [x] Venda a prazo (boleto/cartão) gerando contas a receber
+- [x] Baixa posterior de recebimentos e controle de inadimplência
+- [x] Compras gerando contas a pagar
+- [x] Classificação financeira: matéria-prima, despesas operacionais, outros
 
 ### 📊 7) Dashboards essenciais (gestão)
-- [ ] Produção: m3 por período, custo por lote, consumo de matéria-prima
-- [ ] Financeiro: fluxo de caixa, pagar vs receber, inadimplência
-- [ ] Comercial: vendas por cliente/produto, ticket médio
-- [ ] Estoque: saldo m3, giro, produtos parados
-- [ ] Custo e margem: custo real por m3/produto, margem por venda, margem sugerida
+- [x] Produção: m3 por período, custo por lote, consumo de matéria-prima
+- [x] Financeiro: fluxo de caixa, pagar vs receber, inadimplência
+- [x] Comercial: vendas por cliente/produto, ticket médio
+- [x] Estoque: saldo m3, giro, produtos parados
+- [x] Custo e margem: custo real por m3/produto, margem por venda, margem sugerida
 
 ### ⚠️ 8) Cálculo de custo real (credibilidade do projeto)
-- [ ] Compor custo real por m3 com: matéria-prima, energia, mão de obra, perdas e indiretos
-- [ ] Exibir custo real por produto e por venda
-- [ ] Exibir margem real e comparação com margem alvo
-- [ ] Regra de margem: mínima 30%, ideal 40% a 60% (alertas automáticos)
+- [x] Compor custo real por m3 com: matéria-prima, energia, mão de obra, perdas e indiretos
+- [x] Exibir custo real por produto e por venda
+- [x] Exibir margem real e comparação com margem alvo
+- [x] Regra de margem: mínima 30%, ideal 40% a 60% (alertas automáticos)
 
 ### 🚨 9) Alertas e inteligência operacional
-- [ ] Alerta de margem baixa
-- [ ] Alerta de estoque crítico
-- [ ] Indicador de vazamento de lucro
-- [ ] Simulador "Se vender X -> lucro Y"
+- [x] Alerta de margem baixa
+- [x] Alerta de estoque crítico
+- [x] Indicador de vazamento de lucro
+- [x] Simulador "Se vender X -> lucro Y"
 
 ### 📅 10) Cronograma de implementação (10 dias)
-- [ ] Dia 1-2 (Dev único): mapeamento completo dos processos e falhas
-- [ ] Dia 2-3 (Dev único): revisão de cadastros (produtos, matéria-prima, clientes, fornecedores, usuários)
-- [ ] Dia 3-4 (Dev único): padronização de ficha técnica e unidade m3
-- [ ] Dia 4-5 (Dev único): configuração de produção e supervisão de OP
-- [ ] Dia 5-6 (Dev único): ajuste de estoque inicial + validação de entradas/saídas
-- [ ] Dia 6-7 (Dev único): contas a pagar/receber e formas de pagamento
-- [ ] Dia 7-8 (Dev único): views de vendas, estoque e financeiro
-- [ ] Dia 8-9 (Dev único): integração/API e automações
-- [ ] Dia 9-10 (Dev único): dashboards de produção, financeiro, comercial e estoque
-- [ ] Dia 10 (Dev único): apresentação final, validação e simulação real
+- [x] Dia 1-2 (Dev único): mapeamento completo dos processos e falhas
+- [x] Dia 2-3 (Dev único): revisão de cadastros (produtos, matéria-prima, clientes, fornecedores, usuários)
+- [x] Dia 3-4 (Dev único): padronização de ficha técnica e unidade m3
+- [x] Dia 4-5 (Dev único): configuração de produção e supervisão de OP
+- [x] Dia 5-6 (Dev único): ajuste de estoque inicial + validação de entradas/saídas
+- [x] Dia 6-7 (Dev único): contas a pagar/receber e formas de pagamento
+- [x] Dia 7-8 (Dev único): views de vendas, estoque e financeiro
+- [x] Dia 8-9 (Dev único): integração/API e automações
+- [x] Dia 9-10 (Dev único): dashboards de produção, financeiro, comercial e estoque
+- [x] Dia 10 (Dev único): apresentação final, validação e simulação real
 
 ### 🧠 11) Entrega executiva para a gestora
-- [ ] Mostrar perdas atuais (estoque parado, erro de preço, falta de controle)
-- [ ] Mostrar ganhos imediatos (custo real, margem real, visão diária)
-- [ ] Mostrar previsibilidade futura (crescimento controlado e decisão segura)
-- [ ] Responder obrigatoriamente: lucro real por produto, desperdício, produto mais lucrativo, meta de vendas para crescer
+- [x] Mostrar perdas atuais (estoque parado, erro de preço, falta de controle)
+- [x] Mostrar ganhos imediatos (custo real, margem real, visão diária)
+- [x] Mostrar previsibilidade futura (crescimento controlado e decisão segura)
+- [x] Responder obrigatoriamente: lucro real por produto, desperdício, produto mais lucrativo, meta de vendas para crescer
 

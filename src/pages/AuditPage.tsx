@@ -19,7 +19,7 @@ import dayjs from 'dayjs'
 import { useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
-import { DatePresetRange } from '../components/DatePresetRange'
+
 import { MetricCard } from '../components/MetricCard'
 import { VirtualTable, type VirtualColumn } from '../components/VirtualTable'
 import { useAuth } from '../auth/AuthContext'
@@ -27,7 +27,7 @@ import { hasPermission } from '../auth/permissions'
 import { listAuditLogs, type AuditAction, type AuditLog } from '../services/auditService'
 import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '../query/queryKeys'
-import { SGBR_BI_ACTIVE } from '../api/apiEnv'
+import { hasAnySources } from '../services/dataSourceService'
 import { DevErrorDetail } from '../components/DevErrorDetail'
 import { getErrorMessage } from '../api/httpError'
 import { pctDelta, shiftRange } from '../utils/dateRange'
@@ -185,7 +185,7 @@ export function AuditPage() {
       <PageHeaderCard
         title="Auditoria"
         subtitle={
-          SGBR_BI_ACTIVE
+          hasAnySources()
             ? 'Logs de auditoria não estão disponíveis na API SGBR integrada. Ative um serviço de log ou outra API.'
             : 'Logs de ações do sistema com filtros na URL e export CSV.'
         }
@@ -205,7 +205,7 @@ export function AuditPage() {
         }
       />
 
-      {SGBR_BI_ACTIVE ? (
+      {hasAnySources() ? (
         <Alert
           type="info"
           showIcon
@@ -214,70 +214,69 @@ export function AuditPage() {
         />
       ) : null}
 
-      <Card className="app-card" variant="borderless">
-        <Space wrap>
-          <Input.Search
-            allowClear
-            style={{ width: 280 }}
-            placeholder="Buscar por ID, ator ou alvo"
-            value={q}
-            onChange={(e) => {
-              const next = e.target.value
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                if (next) p.set('q', next)
-                else p.delete('q')
-                return p
-              })
-            }}
-          />
-          <Select
-            style={{ width: 260 }}
-            value={action}
-            onChange={(next) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                if (next === 'all') p.delete('a')
-                else p.set('a', next)
-                return p
-              })
-            }}
-            options={[
-              { value: 'all', label: 'Todas as ações' },
-              { value: 'login', label: 'login' },
-              { value: 'logout', label: 'logout' },
-              { value: 'users.create', label: 'users.create' },
-              { value: 'users.update', label: 'users.update' },
-              { value: 'users.delete', label: 'users.delete' },
-              { value: 'reports.export', label: 'reports.export' },
-              { value: 'pii.reveal', label: 'pii.reveal' },
-            ]}
-          />
-          <DatePicker.RangePicker
-            onChange={(vals) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                const [from, to] = vals ?? []
-                if (from) p.set('start', from.format('YYYY-MM-DD'))
-                else p.delete('start')
-                if (to) p.set('end', to.format('YYYY-MM-DD'))
-                else p.delete('end')
-                return p
-              })
-            }}
-          />
-          <DatePresetRange
-            storageKey="date-preset:audit"
-            onApply={(from, to) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                p.set('start', from)
-                p.set('end', to)
-                return p
-              })
-            }}
-          />
-        </Space>
+      <Card className="app-card no-hover" variant="borderless" title="Filtros">
+        <div className="filter-bar">
+          <div className="filter-item">
+            <span>Busca</span>
+            <Input.Search
+              allowClear
+              placeholder="ID, ator ou alvo"
+              value={q}
+              onChange={(e) => {
+                const next = e.target.value
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  if (next) p.set('q', next)
+                  else p.delete('q')
+                  return p
+                })
+              }}
+            />
+          </div>
+          <div className="filter-item">
+            <span>Ação</span>
+            <Select
+              style={{ width: 220 }}
+              value={action}
+              onChange={(next) => {
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  if (next === 'all') p.delete('a')
+                  else p.set('a', next)
+                  return p
+                })
+              }}
+              options={[
+                { value: 'all', label: 'Todas as ações' },
+                { value: 'login', label: 'Login' },
+                { value: 'logout', label: 'Logout' },
+                { value: 'users.create', label: 'Criar usuário' },
+                { value: 'users.update', label: 'Editar usuário' },
+                { value: 'users.delete', label: 'Excluir usuário' },
+                { value: 'reports.export', label: 'Exportar relatório' },
+                { value: 'pii.reveal', label: 'Dados sensíveis' },
+              ]}
+            />
+          </div>
+          <div className="filter-item">
+            <span>Período</span>
+            <DatePicker.RangePicker
+              format="DD/MM/YYYY"
+              placeholder={['Data inicial', 'Data final']}
+              onChange={(vals) => {
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  const [from, to] = vals ?? []
+                  if (from) p.set('start', from.format('YYYY-MM-DD'))
+                  else p.delete('start')
+                  if (to) p.set('end', to.format('YYYY-MM-DD'))
+                  else p.delete('end')
+                  return p
+                })
+              }}
+            />
+          </div>
+        </div>
       </Card>
 
       <Row gutter={[12, 12]}>
