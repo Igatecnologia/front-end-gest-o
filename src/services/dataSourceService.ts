@@ -42,12 +42,16 @@ export function getAuthDataSource(): DataSource | null {
 
 export async function listDataSources(): Promise<DataSource[]> {
   try {
-    const list = await getValidated(http, BASE, dataSourceListSchema)
-    writeCache(list)
-    return list
+    return await listDataSourcesFromApi()
   } catch {
     return readCache()
   }
+}
+
+export async function listDataSourcesFromApi(): Promise<DataSource[]> {
+  const list = await getValidated(http, BASE, dataSourceListSchema)
+  writeCache(list)
+  return list
 }
 
 export async function createDataSource(payload: DataSourceCreatePayload): Promise<DataSource> {

@@ -51,7 +51,7 @@ import {
 } from '../services/dataSourceService'
 import { DataSourceStatus } from '../components/DataSourceStatus'
 import { ERP_STANDARD_FIELDS, ERP_ENDPOINT_OPTIONS } from '../api/erpStandardFields'
-import { diagnoseFields, type DiagnosticResult } from '../utils/dataSourceDiagnostic'
+import { diagnoseFields, type DiagnosticResult, type FieldAnalysis } from '../utils/dataSourceDiagnostic'
 
 const TYPE_OPTIONS = [
   { value: 'rest_api', label: 'Conexao direta' },
@@ -151,6 +151,8 @@ export function DataSourceConfigPage() {
         name: ds.name, type: ds.type, apiUrl: ds.apiUrl,
         dataEndpoint: ds.dataEndpoint ?? '',
         authMethod: ds.authMethod, authCredentials: '',
+        apiLogin: '',
+        apiPassword: '',
         isAuthSource: ds.isAuthSource ?? false,
         loginEndpoint: ds.loginEndpoint ?? '',
         loginFieldUser: ds.loginFieldUser ?? 'login',
@@ -180,7 +182,13 @@ export function DataSourceConfigPage() {
           name: v.name ?? 'Teste', type: v.type ?? 'rest_api',
           apiUrl: v.apiUrl, authMethod: v.authMethod ?? 'none',
           authCredentials: v.authCredentials || undefined,
+          apiLogin: v.apiLogin || undefined,
+          apiPassword: v.apiPassword || undefined,
           dataEndpoint: v.dataEndpoint || undefined,
+          isAuthSource: v.isAuthSource ?? false,
+          passwordMode: v.passwordMode || 'plain',
+          loginFieldUser: v.loginFieldUser || 'login',
+          loginFieldPassword: v.loginFieldPassword || 'senha',
           erpEndpoints: [], fieldMappings: [],
         })
       }
@@ -189,7 +197,11 @@ export function DataSourceConfigPage() {
 
       const fields = result.sampleFields ?? []
       if (fields.length > 0) {
-        const diag = diagnoseFields(fields)
+        const diag = diagnoseFields(
+          fields,
+          (result as Record<string, unknown>).fieldTypes as Record<string, string> | undefined,
+          (result as Record<string, unknown>).sampleRows as Record<string, unknown>[] | undefined,
+        )
         setDiagnostic(diag)
         if ((form.getFieldValue('erpEndpoints') ?? []).length === 0 && diag.suggestedEndpoints.length > 0)
           form.setFieldValue('erpEndpoints', diag.suggestedEndpoints)
@@ -211,6 +223,8 @@ export function DataSourceConfigPage() {
         name: v.name, type: v.type, apiUrl: v.apiUrl,
         authMethod: v.authMethod,
         authCredentials: v.authCredentials || undefined,
+        apiLogin: v.apiLogin || undefined,
+        apiPassword: v.apiPassword || undefined,
         erpEndpoints: v.erpEndpoints ?? [],
         fieldMappings: (v.fieldMappings ?? []).filter((m: { standardField?: string; sourceField?: string }) => m.standardField && m.sourceField),
         isAuthSource: v.isAuthSource ?? false,
@@ -451,6 +465,26 @@ export function DataSourceConfigPage() {
                     <Input placeholder="/sgbrbi/usuario/login" />
                   </Form.Item>
                   <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Item
+                        label="Usuario da API (fonte de dados)"
+                        name="apiLogin"
+                        help="Usado para login automatico da API no backend."
+                      >
+                        <Input placeholder="Ex: iga" autoComplete="username" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        label="Senha da API (fonte de dados)"
+                        name="apiPassword"
+                        help={editingId ? 'Preencha para atualizar. Em branco = manter atual.' : undefined}
+                      >
+                        <Input.Password placeholder="Ex: 123456" autoComplete="current-password" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Row gutter={12}>
                     <Col span={8}>
                       <Form.Item label="Campo de usuario na API" name="loginFieldUser">
                         <Select options={[
@@ -511,27 +545,86 @@ export function DataSourceConfigPage() {
                   <Alert type="warning" showIcon message="Conectado mas sem dados — verifique o caminho dos dados" style={{ marginBottom: 8 }} />
                 )}
 
+                {/* ── Resumo automático da API ── */}
+                {diagnostic?.apiSummary && (
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="Análise automática da API"
+                    description={diagnostic.apiSummary}
+                    style={{ marginBottom: 8 }}
+                  />
+                )}
+
+                {/* ── Áreas reconhecidas ── */}
                 {diagnostic && diagnostic.recognized.length > 0 && (
-                  <Card size="small" title="Reconhecido automaticamente" style={{ marginBottom: 8 }}>
+                  <Card size="small" title="Áreas compatíveis" style={{ marginBottom: 8 }}>
                     {diagnostic.recognized.map((r) => (
-                      <div key={r.area} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                        <span>{r.label}</span>
+                      <div key={r.area} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid var(--qc-border)' }}>
+                        <div>
+                          <span style={{ fontWeight: 500 }}>{r.label}</span>
+                          <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                            {r.matchedFields.length} campos encontrados
+                            {r.missingFields.length > 0 && ` · ${r.missingFields.length} faltando`}
+                          </Typography.Text>
+                        </div>
                         <Tag color={r.confidence === 'alta' ? 'green' : r.confidence === 'media' ? 'orange' : 'default'}>
-                          {r.confidence === 'alta' ? 'Sim' : r.confidence === 'media' ? 'Provavel' : 'Possivel'}
+                          {r.confidence === 'alta' ? 'Compatível' : r.confidence === 'media' ? 'Provável' : 'Possível'}
                         </Tag>
                       </div>
                     ))}
                     {diagnostic.suggestedMappings.length > 0 && (
-                      <Typography.Text type="success" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+                      <Typography.Text type="success" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
                         {diagnostic.suggestedMappings.length} campos mapeados automaticamente
                       </Typography.Text>
                     )}
                   </Card>
                 )}
 
+                {/* ── Preview dos campos detectados ── */}
+                {diagnostic && diagnostic.fieldAnalysis.length > 0 && (
+                  <Card size="small" title={`Campos detectados (${diagnostic.fieldAnalysis.length})`} style={{ marginBottom: 8 }}>
+                    <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                      <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--qc-border)', textAlign: 'left' }}>
+                            <th style={{ padding: '4px 8px', fontWeight: 600, color: 'var(--qc-text-muted)', fontSize: 11 }}>Campo</th>
+                            <th style={{ padding: '4px 8px', fontWeight: 600, color: 'var(--qc-text-muted)', fontSize: 11 }}>Tipo</th>
+                            <th style={{ padding: '4px 8px', fontWeight: 600, color: 'var(--qc-text-muted)', fontSize: 11 }}>Função</th>
+                            <th style={{ padding: '4px 8px', fontWeight: 600, color: 'var(--qc-text-muted)', fontSize: 11 }}>Exemplo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {diagnostic.fieldAnalysis.map((f: FieldAnalysis) => (
+                            <tr key={f.name} style={{ borderBottom: '1px solid var(--qc-border)' }}>
+                              <td style={{ padding: '4px 8px', fontWeight: 500, fontFamily: 'monospace' }}>{f.name}</td>
+                              <td style={{ padding: '4px 8px' }}>
+                                <Tag style={{ fontSize: 10, margin: 0 }}>{f.type}</Tag>
+                              </td>
+                              <td style={{ padding: '4px 8px' }}>
+                                {f.suggestedRole ? (
+                                  <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>{f.suggestedRole}</Tag>
+                                ) : (
+                                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>—</Typography.Text>
+                                )}
+                              </td>
+                              <td style={{ padding: '4px 8px', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--qc-text-muted)' }}>
+                                {f.sampleValue !== null && f.sampleValue !== undefined
+                                  ? String(f.sampleValue).slice(0, 60)
+                                  : <span style={{ opacity: 0.5 }}>null</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </Card>
+                )}
+
+                {/* ── Campos não reconhecidos ── */}
                 {diagnostic && diagnostic.unknownFields.length > 0 && (
                   <div style={{ marginBottom: 8 }}>
-                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>Campos da API nao usados no painel:</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>Campos da API não usados nas telas do sistema:</Typography.Text>
                     <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {diagnostic.unknownFields.map((f) => <Tag key={f} style={{ fontSize: 11 }}>{f}</Tag>)}
                     </div>

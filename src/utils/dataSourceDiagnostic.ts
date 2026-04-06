@@ -26,6 +26,13 @@ export type AreaMatch = {
   missingFields: string[]
 }
 
+export type FieldAnalysis = {
+  name: string
+  type: string
+  sampleValue: unknown
+  suggestedRole: string | null
+}
+
 export type DiagnosticResult = {
   /** Areas reconhecidas nos dados */
   recognized: AreaMatch[]
@@ -37,6 +44,41 @@ export type DiagnosticResult = {
   suggestedMappings: Array<{ standardField: string; sourceField: string; transform: 'none' | 'trim' | 'number' | 'date_iso' }>
   /** Endpoints sugeridos */
   suggestedEndpoints: string[]
+  /** Análise campo a campo com tipos e valores */
+  fieldAnalysis: FieldAnalysis[]
+  /** Resumo legível da API */
+  apiSummary: string
+}
+
+/**
+ * Detecta o "papel" provável de um campo baseado em nome e tipo.
+ */
+function detectFieldRole(fieldName: string, fieldType: string | undefined): string | null {
+  const f = fieldName.toLowerCase()
+  const t = fieldType ?? 'string'
+
+  // IDs
+  if (f === 'id' || f === 'codigo' || f === 'code' || f.startsWith('cod')) return 'Identificador'
+
+  // Datas
+  if (f.includes('data') || f.includes('date') || f.includes('dt_') || f === 'created_at' || f === 'updated_at' || t === 'date') return 'Data'
+
+  // Valores monetários
+  if (f.includes('valor') || f.includes('total') || f.includes('preco') || f.includes('custo') || f.includes('price') || f.includes('cost') || f.includes('amount')) return 'Valor monetário'
+
+  // Quantidades
+  if (f.includes('qtd') || f.includes('quantidade') || f.includes('qty') || f.includes('quantity')) return 'Quantidade'
+
+  // Nomes/descrições
+  if (f.includes('nome') || f.includes('name') || f.includes('desc') || f.includes('produto') || f.includes('cliente') || f.includes('fornecedor')) return 'Nome/Descrição'
+
+  // Status
+  if (f.includes('status') || f.includes('estado') || f.includes('situacao')) return 'Status'
+
+  // Percentuais
+  if (f.includes('pct') || f.includes('percent') || f.includes('margem') || f.includes('rendimento')) return 'Percentual'
+
+  return null
 }
 
 /**
@@ -45,8 +87,13 @@ export type DiagnosticResult = {
  * - Quais campos estao faltando
  * - Quais campos sao desconhecidos
  * - Sugestoes de mapeamento automatico
+ * - Analise de tipos e valores
  */
-export function diagnoseFields(sampleFields: string[]): DiagnosticResult {
+export function diagnoseFields(
+  sampleFields: string[],
+  fieldTypes?: Record<string, string>,
+  sampleRows?: Record<string, unknown>[],
+): DiagnosticResult {
   const normalized = sampleFields.map((f) => f.toLowerCase().trim())
   const recognized: AreaMatch[] = []
   const matchedFieldsAll = new Set<string>()
@@ -62,42 +109,30 @@ export function diagnoseFields(sampleFields: string[]): DiagnosticResult {
     const keywords = AREA_KEYWORDS[areaKey] ?? []
     const areaFields = config.fields
 
-    // Campos da API que batem com keywords da area
     const matchedByKeyword = normalized.filter((f) =>
       keywords.some((kw) => f.includes(kw)),
     )
-
-    // Campos da API que batem direto com campos padrao (nome exato ou similar)
     const matchedByName = normalized.filter((f) =>
       areaFields.some((sf) => f === sf.toLowerCase() || f.includes(sf.toLowerCase()) || sf.toLowerCase().includes(f)),
     )
-
     const allMatched = [...new Set([...matchedByKeyword, ...matchedByName])]
 
     if (allMatched.length === 0) continue
 
-    // Confianca baseada em quantos campos batem
     const ratio = allMatched.length / areaFields.length
     const confidence: 'alta' | 'media' | 'baixa' =
       ratio >= 0.5 ? 'alta' : ratio >= 0.25 ? 'media' : 'baixa'
 
-    // Campos padrao que NAO foram encontrados
     const missingFields = areaFields.filter(
       (sf) => !normalized.some((f) => f === sf.toLowerCase() || f.includes(sf.toLowerCase())),
     )
 
     allMatched.forEach((f) => matchedFieldsAll.add(f))
 
-    recognized.push({
-      area: areaKey,
-      label: config.label,
-      confidence,
-      matchedFields: allMatched,
-      missingFields,
-    })
+    recognized.push({ area: areaKey, label: config.label, confidence, matchedFields: allMatched, missingFields })
   }
 
-  // Campos que nao pertencem a nenhuma area
+  // Campos desconhecidos
   const unknownFields = sampleFields.filter(
     (f) => !matchedFieldsAll.has(f.toLowerCase().trim()),
   )
@@ -105,7 +140,7 @@ export function diagnoseFields(sampleFields: string[]): DiagnosticResult {
   // Mapeamentos sugeridos
   const suggestedMappings = buildSuggestedMappings(sampleFields, recognized)
 
-  // Endpoints sugeridos (areas com confianca alta ou media)
+  // Endpoints sugeridos
   const suggestedEndpoints = recognized
     .filter((r) => r.confidence === 'alta' || r.confidence === 'media')
     .map((r) => r.area)
@@ -116,7 +151,62 @@ export function diagnoseFields(sampleFields: string[]): DiagnosticResult {
     return order[a.confidence] - order[b.confidence]
   })
 
-  return { recognized, unknownFields, isVendasAnalitico, suggestedMappings, suggestedEndpoints }
+  // Análise de campos com tipos e valores
+  const firstRow = sampleRows?.[0]
+  const fieldAnalysis: FieldAnalysis[] = sampleFields.map((name) => {
+    const type = fieldTypes?.[name] ?? inferTypeFromName(name)
+    const sampleValue = firstRow?.[name] ?? null
+    const suggestedRole = detectFieldRole(name, type)
+    return { name, type, sampleValue, suggestedRole }
+  })
+
+  // Resumo da API
+  const apiSummary = buildApiSummary(sampleFields, fieldAnalysis, isVendasAnalitico, recognized)
+
+  return { recognized, unknownFields, isVendasAnalitico, suggestedMappings, suggestedEndpoints, fieldAnalysis, apiSummary }
+}
+
+/**
+ * Gera um resumo legível sobre o que a API está enviando.
+ */
+function buildApiSummary(
+  fields: string[],
+  analysis: FieldAnalysis[],
+  isVendas: boolean,
+  recognized: AreaMatch[],
+): string {
+  const parts: string[] = []
+
+  if (isVendas) {
+    parts.push('API reconhecida como dados de vendas analítico (padrão SGBR BI)')
+  } else if (recognized.length > 0) {
+    const areas = recognized.filter(r => r.confidence !== 'baixa').map(r => r.label)
+    if (areas.length > 0) {
+      parts.push(`Dados compatíveis com: ${areas.join(', ')}`)
+    }
+  }
+
+  const dateFields = analysis.filter(f => f.suggestedRole === 'Data')
+  const moneyFields = analysis.filter(f => f.suggestedRole === 'Valor monetário')
+  const nameFields = analysis.filter(f => f.suggestedRole === 'Nome/Descrição')
+  const qtyFields = analysis.filter(f => f.suggestedRole === 'Quantidade')
+
+  parts.push(`${fields.length} campos detectados`)
+
+  if (dateFields.length > 0) parts.push(`${dateFields.length} campo(s) de data: ${dateFields.map(f => f.name).join(', ')}`)
+  if (moneyFields.length > 0) parts.push(`${moneyFields.length} campo(s) de valor: ${moneyFields.map(f => f.name).join(', ')}`)
+  if (nameFields.length > 0) parts.push(`${nameFields.length} campo(s) de nome: ${nameFields.map(f => f.name).join(', ')}`)
+  if (qtyFields.length > 0) parts.push(`${qtyFields.length} campo(s) de quantidade: ${qtyFields.map(f => f.name).join(', ')}`)
+
+  return parts.join('. ') + '.'
+}
+
+/** Infere tipo pelo nome do campo (quando não temos fieldTypes do backend) */
+function inferTypeFromName(fieldName: string): string {
+  const f = fieldName.toLowerCase()
+  if (f.includes('data') || f.includes('date') || f.includes('dt_')) return 'date'
+  if (f.includes('valor') || f.includes('total') || f.includes('preco') || f.includes('custo') || f.includes('qtd')) return 'number'
+  return 'string'
 }
 
 /** Gera mapeamentos automaticos baseados em similaridade de nomes */
@@ -127,7 +217,6 @@ function buildSuggestedMappings(
   const mappings: DiagnosticResult['suggestedMappings'] = []
   const usedSource = new Set<string>()
 
-  // Pega todos os campos padrao das areas reconhecidas
   const standardFields = recognized.flatMap((r) =>
     (ERP_STANDARD_FIELDS[r.area]?.fields ?? []),
   )
@@ -136,14 +225,12 @@ function buildSuggestedMappings(
   for (const std of uniqueStandard) {
     const stdLower = std.toLowerCase()
 
-    // Match exato
     const exact = sampleFields.find((f) => f.toLowerCase() === stdLower && !usedSource.has(f))
     if (exact) {
       usedSource.add(exact)
-      continue // nao precisa mapear, nome ja e igual
+      continue
     }
 
-    // Match parcial (contem o nome)
     const partial = sampleFields.find(
       (f) => !usedSource.has(f) && (
         f.toLowerCase().includes(stdLower) ||
@@ -210,7 +297,6 @@ export function diagnoseConnection(
   sampleFields: string[] | undefined,
   httpStatus?: number,
 ): ConnectionDiagnostic {
-  // Servidor nao alcancavel
   if (!testSuccess && (testMessage.includes('ECONNREFUSED') || testMessage.includes('Failed to fetch') || testMessage.includes('timeout'))) {
     return {
       status: 'error',
@@ -223,7 +309,6 @@ export function diagnoseConnection(
     }
   }
 
-  // Auth required
   if (!testSuccess && (httpStatus === 401 || httpStatus === 403 || testMessage.includes('401') || testMessage.includes('403') || testMessage.includes('Unauthorized'))) {
     return {
       status: 'auth_required',
@@ -236,7 +321,6 @@ export function diagnoseConnection(
     }
   }
 
-  // Conectou mas sem dados
   if (testSuccess && (!sampleFields || sampleFields.length === 0)) {
     return {
       status: 'no_data',
@@ -250,7 +334,6 @@ export function diagnoseConnection(
     }
   }
 
-  // Erro generico
   if (!testSuccess) {
     return {
       status: 'error',
@@ -259,7 +342,6 @@ export function diagnoseConnection(
     }
   }
 
-  // Sucesso com dados
   return {
     status: 'ok',
     message: 'Conexao estabelecida com sucesso',

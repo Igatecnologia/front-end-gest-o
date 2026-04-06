@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 :root,
 [data-theme='light'] {
@@ -31,17 +31,26 @@
   --chart-neutral: #8c8c8c;
 
   /* Tipografia display */
-  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  /* Fluid type scale */
+  /* ── Escala tipográfica unificada ── */
   --text-page-title: clamp(1.5rem, 3vw, 2rem);
   --text-section-title: clamp(1.125rem, 2.5vw, 1.375rem);
   --text-card-title: clamp(1rem, 2vw, 1.125rem);
-  --text-metric: clamp(1.75rem, 4vw, 2.25rem);
-  --text-label: 0.75rem;
-  --text-body: 0.875rem;
-  --text-small: 0.75rem;
+  --text-metric: clamp(1.5rem, 4vw, 2rem);
+
+  --text-2xs: 0.625rem;   /* 10px — tags de margem, hints */
+  --text-xs: 0.6875rem;   /* 11px — labels uppercase, meta */
+  --text-sm: 0.75rem;     /* 12px — secondary body, captions */
+  --text-base: 0.8125rem; /* 13px — tabela body, nomes */
+  --text-md: 0.875rem;    /* 14px — body padrão, valores */
+  --text-lg: 0.9375rem;   /* 15px — valores em destaque */
+  --text-xl: 1rem;        /* 16px — totais grandes */
+
+  --text-label: var(--text-xs);
+  --text-body: var(--text-md);
+  --text-small: var(--text-sm);
 }
 
 [data-theme='dark'] {
@@ -168,12 +177,15 @@ td[class*="ant-table-cell"] {
 .metric-card__value--hero {
   font-size: clamp(1.5rem, 4vw, 2rem);
   font-family: var(--font-display);
+  font-weight: 800;
   letter-spacing: -0.03em;
 }
-.metric-card__prev {
-  font-size: 0.75rem;
+.metric-card__prev,
+.metric-card__content .ant-typography-secondary {
+  font-size: var(--text-xs);
   color: var(--qc-text-muted);
 }
+
 .metric-card--hero {
   border-width: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -497,7 +509,8 @@ td[class*="ant-table-cell"] {
 /* ─── Tipografia Display ─── */
 .display-title {
   font-family: var(--font-display) !important;
-  letter-spacing: -0.02em !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
   line-height: 1.15 !important;
 }
 
@@ -505,10 +518,10 @@ td[class*="ant-table-cell"] {
 .page-header-card .ant-typography h4 {
   font-family: var(--font-display) !important;
   font-size: var(--text-page-title) !important;
-  letter-spacing: -0.02em !important;
+  letter-spacing: -0.025em !important;
   line-height: 1.15 !important;
-  font-weight: 400 !important;
-  color: var(--qc-primary) !important;
+  font-weight: 700 !important;
+  color: var(--qc-text) !important;
 }
 
 /* Card section titles */
@@ -530,10 +543,11 @@ td[class*="ant-table-cell"] {
 /* Sidebar brand display */
 .app-sider-brand-name {
   font-family: var(--font-display);
-  font-size: 1.25rem;
-  letter-spacing: -0.01em;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   line-height: 1.1;
-  color: var(--qc-primary) !important;
+  color: var(--qc-text) !important;
 }
 
 /* Login page title */
@@ -546,10 +560,10 @@ td[class*="ant-table-cell"] {
 .ant-layout-header .ant-typography-h5,
 .ant-layout-header .ant-typography h5 {
   font-family: var(--font-display) !important;
-  font-weight: 400 !important;
-  letter-spacing: -0.01em !important;
-  font-size: 1.15rem !important;
-  color: var(--qc-primary) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  font-size: 1.1rem !important;
+  color: var(--qc-text) !important;
 }
 
 /* ─── Cards: remover hover de cards não-clicáveis ─── */
@@ -621,7 +635,8 @@ td[class*="ant-table-cell"] {
   color: #e8d070;
 }
 
-/* ─── MetricCard hero variant ─── */
+/* ─── MetricCard hero variant (BEM: --hero) ─── */
+.metric-card--hero,
 .metric-card-hero {
   border: 1px solid color-mix(in srgb, var(--qc-primary) 35%, transparent) !important;
   background: linear-gradient(
@@ -631,10 +646,12 @@ td[class*="ant-table-cell"] {
   ) !important;
 }
 
+.metric-card--hero:hover,
 .metric-card-hero:hover {
   border-color: color-mix(in srgb, var(--qc-primary) 50%, transparent) !important;
 }
 
+[data-theme='dark'] .metric-card--hero,
 [data-theme='dark'] .metric-card-hero {
   background: linear-gradient(
     135deg,
@@ -658,7 +675,8 @@ td[class*="ant-table-cell"] {
   min-width: 0;
 }
 
-.filter-bar .filter-item label {
+.filter-bar .filter-item label,
+.filter-bar .filter-item > span:first-child {
   font-size: 11px;
   font-weight: 600;
   color: var(--qc-text-muted);
@@ -755,7 +773,8 @@ td[class*="ant-table-cell"] {
 .login-brand-strip .login-brand-text {
   font-family: var(--font-display);
   font-size: 1.65rem;
-  letter-spacing: -0.02em;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   color: var(--qc-text);
   line-height: 1.1;
 }
@@ -870,6 +889,172 @@ td[class*="ant-table-cell"] {
 
 .app-sider-menu .ant-menu-submenu .ant-menu-item {
   padding-left: 40px !important;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SISTEMA TIPOGRÁFICO UNIFICADO
+   Todas as telas usam estas classes/variáveis.
+   Nunca hardcodar fontSize inline — usar a escala.
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Labels (uppercase, muted) ── */
+.typ-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--qc-text-muted);
+}
+
+/* ── Section headers (dentro de cards/drawers) ── */
+.typ-section {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--qc-text-muted);
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* ── Body padrão ── */
+.typ-body {
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+
+/* ── Texto base de tabela ── */
+.typ-table-body {
+  font-size: var(--text-base);
+}
+
+/* ── Texto secondary / caption ── */
+.typ-caption {
+  font-size: var(--text-sm);
+  color: var(--qc-text-muted);
+}
+
+/* ── Texto meta (ainda menor, hints) ── */
+.typ-meta {
+  font-size: var(--text-xs);
+  color: var(--qc-text-muted);
+}
+
+/* ── Texto mini (tags de margem) ── */
+.typ-mini {
+  font-size: var(--text-2xs);
+}
+
+/* ── Valor numérico (tabular, bold) ── */
+.typ-value {
+  font-size: var(--text-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.typ-value-lg {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.typ-value-xl {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Cabeçalhos de tabela ── */
+.typ-thead {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--qc-text-muted);
+  padding: 10px 12px;
+}
+
+/* ── Tooltip de gráfico ── */
+.typ-tooltip-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94A3B8;
+}
+
+.typ-tooltip-name {
+  font-size: var(--text-sm);
+  color: #94A3B8;
+}
+
+.typ-tooltip-value {
+  font-size: var(--text-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #F8FAFC;
+}
+
+/* ── Consistência de todas as tags (fontSize) ── */
+.ant-tag {
+  font-size: var(--text-xs) !important;
+}
+
+/* ── Metric card tipografia ── */
+.metric-card__title {
+  font-size: var(--text-xs);
+}
+
+.metric-card__value {
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  font-family: var(--font-body);
+}
+
+.metric-card__value--hero {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-family: var(--font-display);
+}
+
+/* ── Legendas de gráficos Recharts ── */
+.recharts-legend-item-text {
+  font-size: var(--text-sm) !important;
+}
+
+.recharts-cartesian-axis-tick-value {
+  font-size: var(--text-sm) !important;
+  fill: var(--qc-text-muted) !important;
+  font-family: var(--font-body) !important;
+}
+
+/* ── Chart cards: não pular no hover ─── */
+.app-card[class*="ant-card"]:has(.recharts-responsive-container):hover {
+  transform: none;
+}
+
+/* ─── Insight tags (BI analytics) ─── */
+[data-theme='dark'] .app-card .ant-typography-secondary {
+  color: var(--qc-text-muted) !important;
+}
+
+/* ─── Resumo analítico cards ─── */
+[data-theme='dark'] .app-card .ant-typography-h4,
+[data-theme='dark'] .app-card .ant-typography h4 {
+  color: var(--qc-text) !important;
+}
+
+/* ─── Quick nav cards hover ─── */
+.app-card[class*="ant-card-hoverable"] {
+  cursor: pointer;
+}
+
+.app-card[class*="ant-card-hoverable"]:hover .anticon {
+  transform: scale(1.15);
+  transition: transform 200ms ease;
+}
+
+/* ─── Recharts responsive fix ─── */
+.recharts-responsive-container {
+  font-family: var(--font-body) !important;
 }
 
 /* ─── Reduced motion ─── */

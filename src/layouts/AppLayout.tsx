@@ -45,7 +45,6 @@ const { Header, Sider, Content } = Layout
 function useSelectedMenuKey(pathname: string) {
   return useMemo(() => {
     if (pathname.startsWith('/dashboard/analises')) return 'dashboard-analises'
-    if (pathname.startsWith('/dashboard/dados')) return 'dashboard-dados'
     if (pathname.startsWith('/dashboard/vendas-analitico')) return 'dashboard-vendas-analitico'
     if (pathname.startsWith('/financeiro')) return 'financeiro'
     if (pathname.startsWith('/relatorios')) return 'relatorios'
@@ -98,8 +97,7 @@ export function AppLayout() {
         children: [
           { key: 'dashboard', icon: <HomeOutlined />, label: <Link to="/dashboard">Visão geral</Link> },
           { key: 'dashboard-analises', icon: <DotChartOutlined />, label: <Link to="/dashboard/analises">Análises BI</Link> },
-          { key: 'dashboard-dados', icon: <TableOutlined />, label: <Link to="/dashboard/dados">Dados detalhados</Link> },
-          { key: 'dashboard-vendas-analitico', icon: <ShoppingCartOutlined />, label: <Link to="/dashboard/vendas-analitico">Vendas analítico</Link> },
+          { key: 'dashboard-vendas-analitico', icon: <ShoppingCartOutlined />, label: <Link to="/dashboard/vendas-analitico">Vendas</Link> },
           { key: 'operacional', icon: <DashboardOutlined />, label: <Link to="/operacional">Operacional</Link> },
           { key: 'alertas', icon: <AlertOutlined />, label: <Link to="/alertas">Alertas</Link> },
         ],
@@ -141,7 +139,7 @@ export function AppLayout() {
 
     const adminChildren: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
     if (hasPermission(session, 'users:view')) {
-      adminChildren.push({ key: 'usuarios', icon: <TeamOutlined />, label: <Link to="/usuarios">Usuários</Link> })
+      adminChildren.push({ key: 'usuarios', icon: <TeamOutlined />, label: <Link to="/usuarios">Funcionários</Link> })
     }
     if (hasPermission(session, 'audit:view')) {
       adminChildren.push({ key: 'auditoria', icon: <FileSearchOutlined />, label: <Link to="/auditoria">Auditoria</Link> })
@@ -305,11 +303,10 @@ export function AppLayout() {
                 {{
                   relatorios: 'Relatórios',
                   financeiro: 'Financeiro',
-                  usuarios: 'Usuários',
+                  usuarios: 'Funcionários',
                   auditoria: 'Auditoria',
                   'dashboard-analises': 'Análises BI',
-                  'dashboard-dados': 'Dados detalhados',
-                  'dashboard-vendas-analitico': 'Vendas Analítico',
+                  'dashboard-vendas-analitico': 'Vendas',
                   producao: 'Produção',
                   'ficha-tecnica': 'Ficha Técnica',
                   comercial: 'Comercial',

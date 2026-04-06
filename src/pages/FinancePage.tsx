@@ -1,5 +1,4 @@
 import {
-  Alert,
   Card,
   Col,
   DatePicker,
@@ -8,12 +7,9 @@ import {
   Select,
   Skeleton,
   Space,
-  Table,
   Tabs,
-  Tag,
   Typography,
 } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
 import {
   SwapOutlined,
   CreditCardOutlined,
@@ -65,13 +61,6 @@ const VendasEspumaTab = lazy(() =>
 function formatBRL(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
-
-function amountTag(amount: number) {
-  const positive = amount >= 0
-  return <Tag color={positive ? 'green' : 'red'}>{formatBRL(amount)}</Tag>
-}
-
-type FinanceTableRow = FinanceEntry & { runningBalance: number }
 
 const tabFallback = <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 24 }} />
 
@@ -170,49 +159,6 @@ function VisaoGeralTab() {
     const margem = receitas > 0 ? (saldo / receitas) * 100 : 0
     return { receitas, despesas, saldo, margem }
   }, [entries, range])
-
-  const tableRows = useMemo<FinanceTableRow[]>(() => {
-    const asc = filteredEntries.slice().reverse()
-    const withAscBalance = asc.reduce<FinanceTableRow[]>((acc, row, idx) => {
-      const prev = idx === 0 ? 0 : acc[idx - 1].runningBalance
-      acc.push({ ...row, runningBalance: prev + row.amount })
-      return acc
-    }, [])
-    return withAscBalance.reverse()
-  }, [filteredEntries])
-
-  const columns: ColumnsType<FinanceTableRow> = [
-    { title: 'ID', dataIndex: 'id', key: 'id', width: 100 },
-    {
-      title: 'Data',
-      dataIndex: 'date',
-      key: 'date',
-      width: 120,
-      render: (v: string) => dayjs(v).format('DD/MM/YYYY'),
-      sorter: (a, b) => dayjs(a.date).valueOf() - dayjs(b.date).valueOf(),
-    },
-    { title: 'Categoria', dataIndex: 'category', key: 'category', width: 140 },
-    { title: 'Descrição', dataIndex: 'description', key: 'description' },
-    {
-      title: 'Valor',
-      dataIndex: 'amount',
-      key: 'amount',
-      align: 'right',
-      render: (v: number) => amountTag(v),
-      sorter: (a, b) => a.amount - b.amount,
-    },
-    {
-      title: 'Saldo acumulado',
-      dataIndex: 'runningBalance',
-      key: 'runningBalance',
-      align: 'right',
-      render: (v: number) => (
-        <Typography.Text strong type={v >= 0 ? 'success' : 'danger'}>
-          {formatBRL(v)}
-        </Typography.Text>
-      ),
-    },
-  ]
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -339,20 +285,10 @@ function VisaoGeralTab() {
         </Row>
       )}
 
-      <Card className="app-card" variant="borderless" title="Fluxo mensal">
+      <Card className="app-card no-hover" variant="borderless" title="Fluxo mensal">
         <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
           <FinanceFlowChart data={data?.monthlyFlow ?? []} />
         </Suspense>
-      </Card>
-
-      <Card className="app-card quantum-table" variant="borderless" title="Lancamentos">
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={tableRows}
-          pagination={{ pageSize: 10, showSizeChanger: false }}
-          aria-label="Tabela de lançamentos financeiros"
-        />
       </Card>
 
     </Space>

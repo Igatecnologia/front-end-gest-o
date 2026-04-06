@@ -1,127 +1,307 @@
-import { Descriptions, Drawer, Tag, Typography } from 'antd'
+import {
+  CalendarOutlined,
+  DollarOutlined,
+  DownOutlined,
+  InboxOutlined,
+  PercentageOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
+import { Button, Col, Drawer, Row, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
+import { useState } from 'react'
 import type { VendaAnaliticaRow } from '../api/schemas'
+import { formatBRL } from '../utils/formatters'
 
-const KNOWN_KEYS = new Set<string>([
-  'data',
-  'codprod',
-  'decprod',
-  'qtdevendida',
-  'und',
-  'qtdeconvertidavd',
-  'precocustoitem',
-  'valorunit',
-  'total',
-  'codcliente',
-  'nomecliente',
-  'cepcliente',
-  'totalprodutos',
-  'statuspedido',
-  'datafec',
-])
-
-function formatBRL(value: number) {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+function statusLabel(code: string): { text: string; color: 'success' | 'warning' | 'error' | 'default' } {
+  const c = code.trim().toUpperCase()
+  if (c === 'F' || c === 'FE' || c === 'PG') return { text: 'Faturado', color: 'success' }
+  if (c === 'C' || c === 'X' || c === 'CAN') return { text: 'Cancelado', color: 'error' }
+  if (c === 'P' || c === 'A' || c === 'AB') return { text: 'Pendente', color: 'warning' }
+  return { text: code, color: 'default' }
 }
 
-function statusTagAnalitico(code: string) {
-  const c = code.trim().toUpperCase()
-  let hint = 'Código de situação enviado pelo ERP; consulte o manual se precisar.'
-  let color: 'success' | 'warning' | 'error' | 'default' = 'default'
-  if (c === 'F' || c === 'FE' || c === 'PG') {
-    hint = 'Faturado / pago / fechado (concluído no sistema).'
-    color = 'success'
-  } else if (c === 'C' || c === 'X' || c === 'CAN') {
-    hint = 'Cancelado.'
-    color = 'error'
-  } else if (c === 'P' || c === 'A' || c === 'AB') {
-    hint = 'Pendente ou em aberto.'
-    color = 'warning'
-  }
+function InfoBlock({ icon, label, value, sub, accent }: {
+  icon: React.ReactNode; label: string; value: string | React.ReactNode; sub?: string; accent?: string
+}) {
   return (
-    <Tag color={color} title={hint}>
-      {code}
-    </Tag>
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      <div style={{
+        width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+        background: accent ? `${accent}14` : 'var(--qc-canvas)',
+        display: 'grid', placeItems: 'center',
+        color: accent ?? 'var(--qc-text-muted)', fontSize: 16,
+      }}>
+        {icon}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <Typography.Text type="secondary" className="typ-label" style={{ display: 'block' }}>
+          {label}
+        </Typography.Text>
+        <div className="typ-value-lg" style={{ marginTop: 1 }}>
+          {value}
+        </div>
+        {sub && <Typography.Text type="secondary" className="typ-meta">{sub}</Typography.Text>}
+      </div>
+    </div>
   )
+}
+
+type PedidoAgrupado = {
+  key: string
+  cliente: string
+  codcliente: string | number
+  cepcliente: string
+  data: string
+  datafec: string
+  status: string
+  itens: VendaAnaliticaRow[]
+  totalPedido: number
+  totalCusto: number
+  totalQtd: number
+  margem: number
+  qtdProdutos: number
 }
 
 type Props = {
   open: boolean
-  row: VendaAnaliticaRow | null
+  pedido: PedidoAgrupado | null
   onClose: () => void
 }
 
-export function VendaAnaliticoDetailDrawer({ open, row, onClose }: Props) {
-  if (!row) return null
+export function VendaAnaliticoDetailDrawer({ open, pedido, onClose }: Props) {
+  const [showAll, setShowAll] = useState(false)
 
-  const extras = Object.entries(row as Record<string, unknown>).filter(([k]) => !KNOWN_KEYS.has(k))
+  if (!pedido) return null
+
+  const status = statusLabel(pedido.status)
+  const lucro = pedido.totalPedido - pedido.totalCusto
+
+  // Agrupar linhas do mesmo produto (codprod + valorunit)
+  const produtosAgrupados = (() => {
+    const map = new Map<string, { item: VendaAnaliticaRow; qtdTotal: number; totalLinha: number; custoTotal: number; linhas: number }>()
+    for (const item of pedido.itens) {
+      const key = `${item.codprod}|${item.valorunit}|${item.precocustoitem}`
+      const cur = map.get(key)
+      if (cur) {
+        cur.qtdTotal += item.qtdevendida
+        cur.totalLinha += item.total
+        cur.custoTotal += item.precocustoitem * item.qtdevendida
+        cur.linhas++
+      } else {
+        map.set(key, {
+          item,
+          qtdTotal: item.qtdevendida,
+          totalLinha: item.total,
+          custoTotal: item.precocustoitem * item.qtdevendida,
+          linhas: 1,
+        })
+      }
+    }
+    return [...map.values()].sort((a, b) => b.totalLinha - a.totalLinha)
+  })()
+
+  const MAX_VISIBLE = 10
+  const visibleProdutos = showAll ? produtosAgrupados : produtosAgrupados.slice(0, MAX_VISIBLE)
+  const hasMore = produtosAgrupados.length > MAX_VISIBLE && !showAll
 
   return (
     <Drawer
-      title="Detalhe da linha de venda"
+      title={null}
       placement="right"
       width={560}
       onClose={onClose}
       open={open}
       destroyOnClose
+      afterOpenChange={(v) => { if (!v) setShowAll(false) }}
+      styles={{ body: { padding: '0 24px 24px' } }}
     >
-      <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>
-        Valores conforme retornados pela API <Typography.Text code>vendas/analitico</Typography.Text>. Se o ERP enviar
-        campos adicionais, eles aparecem em &quot;Outros campos&quot; no fim.
-      </Typography.Paragraph>
-
-      <Descriptions column={1} size="small" bordered styles={{ label: { width: 200 } }}>
-        <Descriptions.Item label="Data do lançamento">
-          {row.data ? dayjs(row.data).format('DD/MM/YYYY HH:mm:ss') : '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Código do produto">{String(row.codprod)}</Descriptions.Item>
-        <Descriptions.Item label="Descrição do produto">{row.decprod || '—'}</Descriptions.Item>
-        <Descriptions.Item label="Quantidade vendida">
-          {row.qtdevendida.toLocaleString('pt-BR')}
-        </Descriptions.Item>
-        <Descriptions.Item label="Unidade">{row.und || '—'}</Descriptions.Item>
-        <Descriptions.Item label="Qtd. convertida (vd)">
-          {row.qtdeconvertidavd?.toLocaleString('pt-BR') ?? '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Preço de custo (item)">{formatBRL(row.precocustoitem)}</Descriptions.Item>
-        <Descriptions.Item label="Valor unitário (venda)">{formatBRL(row.valorunit)}</Descriptions.Item>
-        <Descriptions.Item label="Total da linha (R$)">
-          <Typography.Text strong>{formatBRL(row.total)}</Typography.Text>
-        </Descriptions.Item>
-        <Descriptions.Item label="Código do cliente">{String(row.codcliente)}</Descriptions.Item>
-        <Descriptions.Item label="Nome do cliente">{row.nomecliente || '—'}</Descriptions.Item>
-        <Descriptions.Item label="CEP do cliente">
-          {row.cepcliente != null && String(row.cepcliente).trim() !== ''
-            ? String(row.cepcliente)
-            : '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Total produtos (campo do pedido)">
-          {row.totalprodutos?.toLocaleString('pt-BR') ?? '—'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Situação do pedido">{statusTagAnalitico(row.statuspedido)}</Descriptions.Item>
-        <Descriptions.Item label="Data de fechamento">
-          {row.datafec ? dayjs(row.datafec).format('DD/MM/YYYY HH:mm:ss') : '—'}
-        </Descriptions.Item>
-      </Descriptions>
-
-      {extras.length > 0 ? (
-        <div style={{ marginTop: 16 }}>
-          <Typography.Title level={5}>Outros campos da API</Typography.Title>
-          <pre
-            style={{
-              margin: 0,
-              padding: 12,
-              background: 'var(--ant-color-fill-quaternary, rgba(0,0,0,0.04))',
-              borderRadius: 8,
-              fontSize: 12,
-              overflow: 'auto',
-              maxHeight: 280,
-            }}
-          >
-            {JSON.stringify(Object.fromEntries(extras), null, 2)}
-          </pre>
+      {/* ── Header do pedido ── */}
+      <div style={{ padding: '20px 0 16px', borderBottom: '1px solid var(--qc-border)', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Venda · {pedido.qtdProdutos} {pedido.qtdProdutos === 1 ? 'produto' : 'produtos'}
+            </Typography.Text>
+            <Typography.Title level={4} style={{ margin: '4px 0 0', lineHeight: 1.2 }}>
+              {pedido.cliente || 'Sem cliente'}
+            </Typography.Title>
+          </div>
+          <Tag color={status.color} style={{ flexShrink: 0, fontSize: 12, padding: '2px 10px' }}>
+            {status.text}
+          </Tag>
         </div>
-      ) : null}
+        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            <CalendarOutlined style={{ marginRight: 4 }} />
+            {dayjs(pedido.data).format('DD/MM/YYYY [às] HH:mm')}
+          </Typography.Text>
+          {pedido.datafec && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Fechamento: {dayjs(pedido.datafec).format('DD/MM/YYYY')}
+            </Typography.Text>
+          )}
+        </div>
+      </div>
+
+      {/* ── KPIs do pedido ── */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        <Col span={12}>
+          <InfoBlock
+            icon={<DollarOutlined />}
+            label="Total da venda"
+            value={formatBRL(pedido.totalPedido)}
+            sub={`${pedido.totalQtd.toLocaleString('pt-BR')} unidades`}
+            accent="#10B981"
+          />
+        </Col>
+        <Col span={12}>
+          <InfoBlock
+            icon={<PercentageOutlined />}
+            label="Margem bruta"
+            value={
+              <span style={{ color: pedido.margem >= 30 ? '#10B981' : pedido.margem >= 15 ? '#F59E0B' : '#F43F5E' }}>
+                {pedido.margem.toFixed(1)}%
+              </span>
+            }
+            sub={`Lucro: ${formatBRL(lucro)}`}
+            accent={pedido.margem >= 30 ? '#10B981' : pedido.margem >= 15 ? '#F59E0B' : '#F43F5E'}
+          />
+        </Col>
+      </Row>
+
+      {/* ── Cliente ── */}
+      <div style={{
+        padding: '14px 16px', borderRadius: 10, marginBottom: 20,
+        background: 'var(--qc-canvas)', border: '1px solid var(--qc-border)',
+      }}>
+        <InfoBlock
+          icon={<UserOutlined />}
+          label="Cliente"
+          value={pedido.cliente || '—'}
+          sub={`Código: ${pedido.codcliente}${pedido.cepcliente ? ` · CEP: ${pedido.cepcliente}` : ''}`}
+          accent="#8B5CF6"
+        />
+      </div>
+
+      {/* ── Lista de produtos ── */}
+      <Typography.Text strong className="typ-section">
+        <InboxOutlined style={{ marginRight: 4 }} />
+        {produtosAgrupados.length === pedido.qtdProdutos
+          ? `Produtos (${produtosAgrupados.length})`
+          : `Produtos (${produtosAgrupados.length} únicos · ${pedido.qtdProdutos} linhas)`}
+      </Typography.Text>
+      <div style={{
+        borderRadius: 10, overflow: 'hidden', marginBottom: 20,
+        border: '1px solid var(--qc-border)',
+      }}>
+        {visibleProdutos.map((p, i) => {
+          const itemLucro = p.totalLinha - p.custoTotal
+          const itemMargem = p.totalLinha > 0 ? (itemLucro / p.totalLinha) * 100 : 0
+          return (
+            <div key={`${p.item.codprod}-${i}`} style={{
+              padding: '14px 16px',
+              borderBottom: i < visibleProdutos.length - 1 ? '1px solid var(--qc-border)' : 'none',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: 7,
+                  background: 'var(--qc-primary-light)',
+                  color: 'var(--qc-primary)',
+                  display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0,
+                  marginTop: 1,
+                }}>
+                  {i + 1}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Typography.Text strong ellipsis style={{ display: 'block', fontSize: 13 }}>
+                    {p.item.decprod}
+                  </Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                    Cód: {p.item.codprod}
+                    {p.linhas > 1 && <> · {p.linhas} linhas agrupadas</>}
+                  </Typography.Text>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <Typography.Text strong style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>
+                    {formatBRL(p.totalLinha)}
+                  </Typography.Text>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, marginLeft: 36,
+                fontSize: 12, color: 'var(--qc-text-muted)',
+              }}>
+                <span>{p.qtdTotal.toLocaleString('pt-BR')} {p.item.und} × {formatBRL(p.item.valorunit)}</span>
+                <span>·</span>
+                <span>Custo: {formatBRL(p.item.precocustoitem)}/un</span>
+                <span>·</span>
+                <span>Lucro: <span style={{ color: itemLucro >= 0 ? '#10B981' : '#F43F5E', fontWeight: 600 }}>{formatBRL(itemLucro)}</span></span>
+                <Tag color={itemMargem >= 30 ? 'green' : itemMargem >= 15 ? 'gold' : 'red'} style={{ margin: 0, fontSize: 10 }}>
+                  {itemMargem.toFixed(1)}%
+                </Tag>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Ver mais */}
+        {hasMore && (
+          <div style={{ padding: '8px 16px', textAlign: 'center', borderTop: '1px solid var(--qc-border)' }}>
+            <Button type="link" size="small" icon={<DownOutlined />} onClick={() => setShowAll(true)}>
+              Ver mais {produtosAgrupados.length - MAX_VISIBLE} produtos
+            </Button>
+          </div>
+        )}
+
+        {/* Totalizador */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '12px 16px', background: 'var(--qc-canvas)',
+          borderTop: '2px solid var(--qc-border)',
+        }}>
+          <div>
+            <Typography.Text strong style={{ fontSize: 13 }}>Total</Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+              {produtosAgrupados.length} {produtosAgrupados.length === 1 ? 'produto' : 'produtos'} · {pedido.totalQtd.toLocaleString('pt-BR')} un
+            </Typography.Text>
+          </div>
+          <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Typography.Text strong style={{ fontSize: 16, fontVariantNumeric: 'tabular-nums' }}>
+              {formatBRL(pedido.totalPedido)}
+            </Typography.Text>
+            <Tag color={pedido.margem >= 30 ? 'green' : pedido.margem >= 15 ? 'gold' : 'red'} style={{ margin: 0, fontSize: 11 }}>
+              {pedido.margem.toFixed(1)}%
+            </Tag>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Resumo financeiro ── */}
+      <Typography.Text strong className="typ-section">
+        <DollarOutlined style={{ marginRight: 4 }} /> Resumo financeiro
+      </Typography.Text>
+      <div style={{ padding: '0 4px' }}>
+        {[
+          { label: 'Faturamento', value: formatBRL(pedido.totalPedido) },
+          { label: 'Custo total', value: formatBRL(pedido.totalCusto) },
+          { label: 'Lucro bruto', value: formatBRL(lucro), color: lucro >= 0 ? '#10B981' : '#F43F5E' },
+          { label: 'Margem', value: `${pedido.margem.toFixed(1)}%`, tag: true },
+        ].map((r) => (
+          <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--qc-border)' }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.label}</Typography.Text>
+            {r.tag ? (
+              <Tag color={pedido.margem >= 30 ? 'green' : pedido.margem >= 15 ? 'gold' : 'red'} style={{ margin: 0 }}>
+                {r.value}
+              </Tag>
+            ) : (
+              <Typography.Text strong style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: r.color }}>
+                {r.value}
+              </Typography.Text>
+            )}
+          </div>
+        ))}
+      </div>
     </Drawer>
   )
 }

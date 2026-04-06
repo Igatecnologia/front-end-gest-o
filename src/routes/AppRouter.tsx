@@ -102,11 +102,7 @@ export function AppRouter() {
           />
           <Route
             path="/dashboard/dados"
-            element={
-              <RequirePermission permission="dashboard:view">
-                <DashboardDataPage />
-              </RequirePermission>
-            }
+            element={<Navigate to="/dashboard/vendas-analitico" replace />}
           />
           <Route
             path="/dashboard/vendas-analitico"

@@ -38,40 +38,15 @@ export function ChartTooltip({
       }}
     >
       {label && (
-        <p
-          style={{
-            color: '#94A3B8',
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            margin: '0 0 6px',
-          }}
-        >
+        <p className="typ-tooltip-label" style={{ margin: '0 0 6px' }}>
           {label}
         </p>
       )}
       {payload.map((entry, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-          <div
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: entry.color,
-              flexShrink: 0,
-            }}
-          />
-          <span style={{ color: '#94A3B8', fontSize: 12 }}>{entry.name}</span>
-          <span
-            style={{
-              color: '#F8FAFC',
-              fontSize: 13,
-              fontWeight: 600,
-              fontVariantNumeric: 'tabular-nums',
-              marginLeft: 'auto',
-            }}
-          >
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color, flexShrink: 0 }} />
+          <span className="typ-tooltip-name">{entry.name}</span>
+          <span className="typ-tooltip-value" style={{ marginLeft: 'auto' }}>
             {fmt(entry.value)}
           </span>
         </div>
@@ -87,16 +62,16 @@ export const gridProps = {
   vertical: false,
 } as const
 
-/** XAxis limpo */
+/** XAxis limpo — tipografia controlada pelo CSS (.recharts-cartesian-axis-tick-value) */
 export const xAxisProps = {
-  tick: { fontSize: 12, fill: '#94A3B8', fontWeight: 500 },
+  tick: { fontSize: 11, fill: '#94A3B8', fontWeight: 500 },
   axisLine: false,
   tickLine: false,
 } as const
 
 /** YAxis limpo */
 export const yAxisProps = {
-  tick: { fontSize: 12, fill: '#94A3B8' },
+  tick: { fontSize: 11, fill: '#94A3B8' },
   axisLine: false,
   tickLine: false,
   width: 72,

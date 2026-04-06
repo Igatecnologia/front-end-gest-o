@@ -82,13 +82,24 @@ export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): Dashboa
   const latestSorted = [...rows].sort(
     (a, b) => parseVendaDate(b.data).valueOf() - parseVendaDate(a.data).valueOf(),
   )
-  const latest: DashboardData['latest'] = latestSorted.slice(0, 120).map((r, i) => ({
-    id: `vd-${String(r.codcliente)}-${String(r.codprod)}-${i}-${parseVendaDate(r.data).valueOf()}`,
-    cliente: String(r.nomecliente),
-    total: Math.round(r.total * 100) / 100,
-    status: mapPedidoStatus(String(r.statuspedido)),
-    data: parseVendaDate(r.data).format('YYYY-MM-DD'),
-  }))
+  const latest: DashboardData['latest'] = latestSorted.map((r, i) => {
+    const total = Math.round(r.total * 100) / 100
+    const custo = Math.round(r.precocustoitem * r.qtdevendida * 100) / 100
+    return {
+      id: `vd-${String(r.codcliente)}-${String(r.codprod)}-${i}-${parseVendaDate(r.data).valueOf()}`,
+      cliente: String(r.nomecliente),
+      total,
+      status: mapPedidoStatus(String(r.statuspedido)),
+      data: parseVendaDate(r.data).format('YYYY-MM-DD'),
+      produto: String(r.decprod),
+      codprod: r.codprod,
+      codcliente: r.codcliente,
+      qtde: r.qtdevendida,
+      valorunit: Math.round(r.valorunit * 100) / 100,
+      custounit: Math.round(r.precocustoitem * 100) / 100,
+      margem: total > 0 ? Math.round(((total - custo) / total) * 1000) / 10 : 0,
+    }
+  })
 
   const dailyVals = salesSorted.map(([, v]) => v.valor)
   const trendVendas = trendFromSeries(salesSorted.map(([, v]) => v.qtd))

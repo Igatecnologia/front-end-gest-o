@@ -19,7 +19,7 @@ const DashboardInsightsCharts = lazy(() =>
 
 export function DashboardInsightsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const period = (searchParams.get('p') ?? '30d') as '7d' | '30d' | '90d'
+  const period = (searchParams.get('p') ?? '90d') as '7d' | '30d' | '90d'
   const startDate = searchParams.get('start') ?? ''
   const endDate = searchParams.get('end') ?? ''
 
@@ -44,49 +44,57 @@ export function DashboardInsightsPage() {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
-        title="Analises BI"
-        subtitle="Graficos analiticos com dados reais de vendas. Altere o periodo para explorar."
+        title="Análises BI"
+        subtitle="Inteligência comercial com gráficos analíticos baseados em dados reais de vendas. Selecione o período para explorar tendências, concentração de clientes e sazonalidade."
       />
 
-      <Card className="app-card no-hover" variant="borderless" title="Filtros">
-        <Space wrap size={12}>
-          <Segmented
-            value={period}
-            options={[
-              { label: '7 dias', value: '7d' },
-              { label: '30 dias', value: '30d' },
-              { label: '90 dias', value: '90d' },
-            ]}
-            onChange={(v) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                p.set('p', String(v))
-                p.delete('start')
-                p.delete('end')
-                return p
-              })
-            }}
-          />
-          <DatePicker.RangePicker
-            format="DD/MM/YYYY"
-            placeholder={['Data inicial', 'Data final']}
-            value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}
-            onChange={(vals) => {
-              setSearchParams((prev) => {
-                const p = new URLSearchParams(prev)
-                const [from, to] = vals ?? []
-                if (from) p.set('start', from.format('YYYY-MM-DD'))
-                else p.delete('start')
-                if (to) p.set('end', to.format('YYYY-MM-DD'))
-                else p.delete('end')
-                return p
-              })
-            }}
-          />
+      <Card className="app-card no-hover" variant="borderless">
+        <div className="filter-bar">
+          <div className="filter-item">
+            <span>Período</span>
+            <Segmented
+              value={period}
+              options={[
+                { label: '7 dias', value: '7d' },
+                { label: '30 dias', value: '30d' },
+                { label: '90 dias', value: '90d' },
+              ]}
+              onChange={(v) => {
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  p.set('p', String(v))
+                  p.delete('start')
+                  p.delete('end')
+                  return p
+                })
+              }}
+            />
+          </div>
+          <div className="filter-item">
+            <span>Intervalo personalizado</span>
+            <DatePicker.RangePicker
+              format="DD/MM/YYYY"
+              placeholder={['Data inicial', 'Data final']}
+              value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}
+              onChange={(vals) => {
+                setSearchParams((prev) => {
+                  const p = new URLSearchParams(prev)
+                  const [from, to] = vals ?? []
+                  if (from) p.set('start', from.format('YYYY-MM-DD'))
+                  else p.delete('start')
+                  if (to) p.set('end', to.format('YYYY-MM-DD'))
+                  else p.delete('end')
+                  return p
+                })
+              }}
+            />
+          </div>
           {filteredData && (
-            <Tag color="blue">{filteredData.latest.length} registros</Tag>
+            <div className="filter-item" style={{ alignSelf: 'flex-end' }}>
+              <Tag color="blue">{filteredData.latest.length} registros analisados</Tag>
+            </div>
           )}
-        </Space>
+        </div>
       </Card>
 
       {dashboardQuery.isLoading && (
@@ -99,8 +107,8 @@ export function DashboardInsightsPage() {
         <Alert
           type="error"
           showIcon
-          message="Nao foi possivel carregar"
-          description={getErrorMessage(dashboardQuery.error, 'Erro ao buscar dados.')}
+          message="Não foi possível carregar os dados"
+          description={getErrorMessage(dashboardQuery.error, 'Erro ao buscar dados para análise.')}
         />
       )}
 

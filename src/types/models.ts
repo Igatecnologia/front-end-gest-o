@@ -59,18 +59,27 @@ export type SalesPoint = { date: string; value: number }
 export type RevenuePoint = { month: string; value: number }
 export type HeatmapPoint = { day: string; hour: number; value: number }
 
+export type DashboardLatestRow = {
+  id: string
+  cliente: string
+  total: number
+  status: 'pago' | 'pendente' | 'cancelado'
+  data: string
+  produto: string
+  codprod: string | number
+  codcliente: string | number
+  qtde: number
+  valorunit: number
+  custounit: number
+  margem: number
+}
+
 export type DashboardData = {
   kpis: Kpi[]
   sales: SalesPoint[]
   revenue: RevenuePoint[]
   heatmap: HeatmapPoint[]
-  latest: Array<{
-    id: string
-    cliente: string
-    total: number
-    status: 'pago' | 'pendente' | 'cancelado'
-    data: string
-  }>
+  latest: DashboardLatestRow[]
 }
 
 /* ── Financeiro ── */

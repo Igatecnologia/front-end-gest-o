@@ -1,4 +1,13 @@
-import { ReloadOutlined } from '@ant-design/icons'
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  CalendarOutlined,
+  DollarOutlined,
+  ReloadOutlined,
+  RiseOutlined,
+  ShoppingCartOutlined,
+  TeamOutlined,
+} from '@ant-design/icons'
 import {
   Alert,
   Button,
@@ -11,7 +20,6 @@ import {
   Select,
   Skeleton,
   Space,
-  Statistic,
   Tag,
   Typography,
 } from 'antd'
@@ -19,17 +27,23 @@ import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Legend,
+  Line,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { ChartTooltip, gridProps, xAxisProps, yAxisProps, CHART_COLORS } from '../components/charts/ChartDefaults'
-
-function formatBRLAxisShort(n: number) {
-  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(0)}k`
-  return String(Math.round(n))
-}
 import { ChartShell } from '../components/ChartShell'
 import { PageHeaderCard } from '../components/PageHeaderCard'
-
 import { DevErrorDetail } from '../components/DevErrorDetail'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
 import { hasAnySources } from '../services/dataSourceService'
@@ -37,17 +51,37 @@ import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import { getErrorMessage } from '../api/httpError'
 import { useRealtimeHeartbeat } from '../hooks/useRealtimeHeartbeat'
-import { coerceTooltipNumber, coerceTooltipNumberOr } from '../utils/rechartsTooltip'
+import { formatBRL, formatCompact } from '../utils/formatters'
 
-function formatBRL(value: number) {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+function formatBRLAxisShort(n: number) {
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(0)}k`
+  return String(Math.round(n))
 }
 
-function deltaColor(deltaPct: number) {
-  if (deltaPct > 0) return 'green'
-  if (deltaPct < 0) return 'red'
-  return 'default'
+// ── Tooltip escuro premium ──
+function DarkTooltip({ active, payload, label, isCurrency = true }: {
+  active?: boolean; payload?: Array<{ name: string; value: number; color: string }>
+  label?: string; isCurrency?: boolean
+}) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: '#0F172A', borderRadius: 8, padding: '10px 14px', boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
+      {label && <p className="typ-tooltip-label" style={{ margin: '0 0 6px' }}>{label}</p>}
+      {payload.map((entry, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color, flexShrink: 0 }} />
+          <span className="typ-tooltip-name">{entry.name}</span>
+          <span className="typ-tooltip-value" style={{ marginLeft: 'auto' }}>
+            {isCurrency ? formatBRL(entry.value) : entry.value.toLocaleString('pt-BR')}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
 }
+
+const PT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'] as const
 
 const SGBR_PERMS_INFO_KEY = 'iga-dismiss-sgbr-permissions-info'
 
@@ -70,62 +104,122 @@ export function DashboardPage() {
     staleTime: hasAnySources() ? ANALITICO_STALE_MS : 15_000,
   })
 
-  const revenueTotal = useMemo(
-    () => (dashboardQuery.data?.revenue ?? []).reduce((sum, r) => sum + r.value, 0),
-    [dashboardQuery.data],
+  // ── Dados derivados ──
+  const currentMonthPt = useMemo(() => PT_MONTHS[dayjs().month()] ?? '', [])
+
+  const revenueFullMonths = useMemo(
+    () => (dashboardQuery.data?.revenue ?? []).filter(r => r.month !== currentMonthPt),
+    [dashboardQuery.data, currentMonthPt],
   )
-  const filteredSales = dashboardQuery.data?.sales ?? []
-  const insights = useMemo(() => {
+
+  const derived = useMemo(() => {
     const data = dashboardQuery.data
-    if (!data) return { anomalies: [] as string[], suggestions: [] as string[] }
-    const anomalies: string[] = []
-    const suggestions: string[] = []
-    const vendas = data.kpis.find((x) => x.key === 'vendas')
-    const usuarios = data.kpis.find((x) => x.key === 'usuarios')
-    const faturamento = data.kpis.find((x) => x.key === 'faturamento')
-    if (vendas && vendas.deltaPct < -5) anomalies.push('Queda relevante em vendas no período atual.')
-    if (usuarios && usuarios.deltaPct < 0) anomalies.push('Base de usuários com retração.')
-    if (faturamento && faturamento.deltaPct > 12) {
-      suggestions.push('Aplicar filtro de receita e abrir Relatórios para identificar segmentos de alta.')
+    if (!data) return null
+
+    const latest = data.latest
+    const faturamento = latest.reduce((s, r) => s + r.total, 0)
+    const custoTotal = latest.reduce((s, r) => s + r.custounit * r.qtde, 0)
+    const margemMedia = faturamento > 0 ? ((faturamento - custoTotal) / faturamento) * 100 : 0
+    const totalPedidos = latest.length
+    const ticketMedio = totalPedidos > 0 ? faturamento / totalPedidos : 0
+    const clientesUnicos = new Set(latest.map(r => r.cliente)).size
+    const produtosUnicos = new Set(latest.map(r => r.produto)).size
+
+    const revenueTotal = data.revenue.reduce((s, r) => s + r.value, 0)
+
+    // Top 5 clientes
+    const clienteMap = new Map<string, number>()
+    latest.forEach(r => {
+      const name = r.cliente?.slice(0, 30) || 'Sem nome'
+      clienteMap.set(name, (clienteMap.get(name) ?? 0) + r.total)
+    })
+    const topClientes = Array.from(clienteMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5)
+
+    // Últimas 8 vendas
+    const ultimasVendas = [...latest]
+      .sort((a, b) => dayjs(b.data).valueOf() - dayjs(a.data).valueOf())
+      .slice(0, 8)
+
+    // Vendas por dia da semana
+    const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab']
+    const dayMap = new Map<string, { qty: number; revenue: number }>()
+    days.forEach(d => dayMap.set(d, { qty: 0, revenue: 0 }))
+    latest.forEach(r => {
+      const d = dayjs(r.data)
+      const dayName = days[d.day()] ?? 'Seg'
+      const cur = dayMap.get(dayName)!
+      dayMap.set(dayName, { qty: cur.qty + 1, revenue: cur.revenue + r.total })
+    })
+    const byDayOfWeek = days.map(d => ({
+      day: d,
+      qty: dayMap.get(d)?.qty ?? 0,
+      revenue: dayMap.get(d)?.revenue ?? 0,
+    }))
+
+    // Melhor dia de vendas
+    const bestDay = byDayOfWeek.reduce((best, cur) => cur.revenue > best.revenue ? cur : best, byDayOfWeek[0])
+
+    // Média diária de vendas
+    const avgDailyRevenue = data.sales.length > 0
+      ? latest.reduce((s, r) => s + r.total, 0) / data.sales.length
+      : 0
+
+    return {
+      faturamento,
+      custoTotal,
+      margemMedia,
+      totalPedidos,
+      ticketMedio,
+      clientesUnicos,
+      produtosUnicos,
+      revenueTotal,
+      topClientes,
+      ultimasVendas,
+      byDayOfWeek,
+      bestDay,
+      avgDailyRevenue,
     }
-    if (data.sales.length > 2) {
-      const last = data.sales[data.sales.length - 1]?.value ?? 0
-      const prev = data.sales[data.sales.length - 2]?.value ?? 0
-      if (last > prev * 1.2) suggestions.push('Pico de vendas detectado. Compare com período 90d.')
-    }
-    return { anomalies, suggestions }
   }, [dashboardQuery.data])
 
   const header = (
     <PageHeaderCard
-      title="Dashboard executivo"
-      subtitle={
-        hasAnySources()
-          ? 'Indicadores calculados a partir de vendas analítico (API SGBR BI), conforme o período acima.'
-          : 'Visão rápida dos principais indicadores.'
-      }
+      title="Dashboard Executivo"
+      subtitle="Visão consolidada do desempenho comercial da empresa."
       extra={
-        <Button icon={<ReloadOutlined />} onClick={() => dashboardQuery.refetch()}>
-          Atualizar
-        </Button>
+        <Space size={8}>
+          {lastPulseAt && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Atualizado {dayjs(dashboardQuery.dataUpdatedAt).format('HH:mm:ss')}
+            </Typography.Text>
+          )}
+          <Button icon={<ReloadOutlined />} onClick={() => dashboardQuery.refetch()}>
+            Atualizar
+          </Button>
+        </Space>
       }
     />
   )
 
   if (dashboardQuery.isLoading || dashboardQuery.isFetching) {
     return (
-      <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
         {header}
-        <Row gutter={[16, 16]}>
-          {[1, 2, 3].map((k) => (
-            <Col key={k} xs={24} sm={12} lg={8}>
-              <Card>
-                <Skeleton active paragraph={{ rows: 1 }} />
-              </Card>
+        <Row gutter={[12, 12]}>
+          {[1, 2, 3, 4].map(k => (
+            <Col key={k} xs={12} sm={6}>
+              <div className="metric-card">
+                <div className="metric-card__accent" style={{ background: 'var(--qc-border)' }} />
+                <div className="metric-card__content">
+                  <Skeleton active paragraph={{ rows: 1 }} title={{ width: '60%' }} />
+                </div>
+              </div>
             </Col>
           ))}
         </Row>
-        <Card>
+        <Card className="app-card" variant="borderless">
           <Skeleton active paragraph={{ rows: 8 }} />
         </Card>
       </Space>
@@ -141,7 +235,7 @@ export function DashboardPage() {
         <Alert
           type="error"
           showIcon
-          title="Não foi possível carregar"
+          message="Não foi possível carregar"
           description={
             <>
               {getErrorMessage(dashboardQuery.error, 'Falha ao carregar dados do dashboard.')}
@@ -154,7 +248,7 @@ export function DashboardPage() {
   }
 
   const data = dashboardQuery.data
-  if (!data) return null
+  if (!data || !derived) return null
 
   if (!data.kpis.length && !data.sales.length) {
     return (
@@ -165,8 +259,10 @@ export function DashboardPage() {
     )
   }
 
+  const filteredSales = data.sales
+
   return (
-    <Space orientation="vertical" size={16} style={{ width: '100%' }}>
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
       {header}
 
       {hasAnySources() && sgbrInfoVisible ? (
@@ -174,8 +270,8 @@ export function DashboardPage() {
           type="info"
           showIcon
           closable
-          title="Permissões neste módulo (SGBR BI)"
-          description="Com o login da API SGBR, este aplicativo aplica um perfil administrativo fixo no menu e nas ações. Papéis diferentes no ERP ainda não são refletidos aqui; fale com a TI se precisar restringir por usuário."
+          message="Permissões neste módulo (SGBR BI)"
+          description="Com o login da API SGBR, este aplicativo aplica um perfil administrativo fixo no menu e nas ações."
           onClose={() => {
             localStorage.setItem(SGBR_PERMS_INFO_KEY, '1')
             setSgbrInfoVisible(false)
@@ -183,7 +279,8 @@ export function DashboardPage() {
         />
       ) : null}
 
-      <Card className="app-card no-hover" variant="borderless" title="Filtros">
+      {/* ── Filtros compactos ── */}
+      <Card className="app-card no-hover" variant="borderless">
         <div className="filter-bar">
           <div className="filter-item">
             <span>Período</span>
@@ -208,32 +305,7 @@ export function DashboardPage() {
             />
           </div>
           <div className="filter-item">
-            <span>Atualização automática</span>
-            <Space size={8}>
-              <Select
-                style={{ width: 200 }}
-                value={String(pollMs)}
-                options={[
-                  { value: '0', label: 'Desativado' },
-                  { value: '10000', label: 'A cada 10s' },
-                  { value: '30000', label: 'A cada 30s' },
-                  { value: '60000', label: 'A cada 1min' },
-                ]}
-                onChange={(next) => {
-                  setSearchParams((prev) => {
-                    const p = new URLSearchParams(prev)
-                    p.set('pollMs', next)
-                    return p
-                  })
-                }}
-              />
-              <Tag color={realtimeEnabled ? 'green' : 'default'}>
-                {realtimeEnabled ? `${transport.toUpperCase()}` : 'Pausa'}
-              </Tag>
-            </Space>
-          </div>
-          <div className="filter-item">
-            <span>Ou escolha as datas</span>
+            <span>Datas</span>
             <DatePicker.RangePicker
               format="DD/MM/YYYY"
               value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}
@@ -251,46 +323,111 @@ export function DashboardPage() {
               placeholder={['Data inicial', 'Data final']}
             />
           </div>
+          <div className="filter-item">
+            <span>Atualização</span>
+            <Space size={8}>
+              <Select
+                style={{ width: 160 }}
+                value={String(pollMs)}
+                options={[
+                  { value: '0', label: 'Manual' },
+                  { value: '10000', label: 'A cada 10s' },
+                  { value: '30000', label: 'A cada 30s' },
+                  { value: '60000', label: 'A cada 1min' },
+                ]}
+                onChange={(next) => {
+                  setSearchParams((prev) => {
+                    const p = new URLSearchParams(prev)
+                    p.set('pollMs', next)
+                    return p
+                  })
+                }}
+              />
+              {realtimeEnabled && (
+                <Tag color="green" style={{ margin: 0 }}>{transport.toUpperCase()}</Tag>
+              )}
+            </Space>
+          </div>
         </div>
       </Card>
 
-      <Row gutter={[16, 16]}>
-        {data.kpis.map((kpi) => (
-          <Col key={kpi.key} xs={24} sm={12} lg={8}>
-            <Card className="app-card" variant="borderless">
-              <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                <Statistic
-                  title={kpi.label}
-                  value={kpi.key === 'faturamento' ? formatBRL(kpi.value) : kpi.value}
-                />
-                <Tag color={kpi.deltaPct === 0 ? 'default' : deltaColor(kpi.deltaPct)}>
-                  {kpi.deltaPct === 0
-                    ? hasAnySources()
-                      ? 'Sem comparativo na API'
-                      : 'Período único'
-                    : `${kpi.deltaPct > 0 ? '+' : ''}${kpi.deltaPct.toFixed(1)}%`}
-                </Tag>
-              </Space>
-            </Card>
-          </Col>
-        ))}
+      {/* ── KPIs Hero ── */}
+      <Row gutter={[12, 12]}>
+        <Col xs={12} sm={6}>
+          <div className="metric-card metric-card--hero">
+            <div className="metric-card__accent" style={{ background: '#10B981' }} />
+            <div className="metric-card__content">
+              <span className="metric-card__title">
+                <DollarOutlined style={{ marginRight: 6 }} />Faturamento
+              </span>
+              <span className="metric-card__value metric-card__value--hero">
+                {formatCompact(derived.faturamento)}
+              </span>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                {derived.totalPedidos} pedidos no período
+              </Typography.Text>
+            </div>
+          </div>
+        </Col>
+        <Col xs={12} sm={6}>
+          <div className="metric-card metric-card--hero">
+            <div className="metric-card__accent" style={{ background: '#3B82F6' }} />
+            <div className="metric-card__content">
+              <span className="metric-card__title">
+                <ShoppingCartOutlined style={{ marginRight: 6 }} />Ticket Médio
+              </span>
+              <span className="metric-card__value metric-card__value--hero">
+                {formatBRL(derived.ticketMedio)}
+              </span>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                Média por pedido
+              </Typography.Text>
+            </div>
+          </div>
+        </Col>
+        <Col xs={12} sm={6}>
+          <div className="metric-card metric-card--hero">
+            <div className="metric-card__accent" style={{ background: '#8B5CF6' }} />
+            <div className="metric-card__content">
+              <span className="metric-card__title">
+                <TeamOutlined style={{ marginRight: 6 }} />Clientes
+              </span>
+              <span className="metric-card__value metric-card__value--hero">
+                {derived.clientesUnicos}
+              </span>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                Clientes únicos atendidos
+              </Typography.Text>
+            </div>
+          </div>
+        </Col>
+        <Col xs={12} sm={6}>
+          <div className="metric-card metric-card--hero">
+            <div className="metric-card__accent" style={{ background: derived.margemMedia >= 30 ? '#10B981' : derived.margemMedia >= 15 ? '#F59E0B' : '#F43F5E' }} />
+            <div className="metric-card__content">
+              <span className="metric-card__title">
+                <RiseOutlined style={{ marginRight: 6 }} />Margem Bruta
+              </span>
+              <span className="metric-card__value metric-card__value--hero">
+                {derived.margemMedia.toFixed(1)}%
+              </span>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                {derived.produtosUnicos} produtos vendidos
+              </Typography.Text>
+            </div>
+          </div>
+        </Col>
       </Row>
 
+      {/* ── Gráficos principais ── */}
       <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}>
-          <Card variant="borderless" className="app-card">
-            <Typography.Title level={5} style={{ marginTop: 0 }}>
-              Quantidade vendida por dia
-            </Typography.Title>
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 12, fontSize: 13 }}>
-              Cada ponto é a soma das <strong>unidades</strong> vendidas naquele dia (mesmo critério da API analítica).
-              Eixo horizontal: dia/mês do recorte.
-            </Typography.Paragraph>
-            <ChartShell>
-              <AreaChart data={filteredSales} margin={{ left: 8, right: 8 }}>
+        <Col xs={24} lg={14}>
+          <Card variant="borderless" className="app-card no-hover" title="Vendas diárias">
+            <ChartShell height={280}>
+              <AreaChart data={filteredSales} margin={{ left: 0, right: 8 }}>
                 <defs>
                   <linearGradient id="gradVendas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.15} />
+                    <stop offset="5%" stopColor={CHART_COLORS[0]} stopOpacity={0.2} />
                     <stop offset="95%" stopColor={CHART_COLORS[0]} stopOpacity={0} />
                   </linearGradient>
                 </defs>
@@ -303,99 +440,199 @@ export function DashboardPage() {
                   dataKey="value"
                   name="Quantidade"
                   stroke={CHART_COLORS[0]}
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                   fill="url(#gradVendas)"
-                  dot={{ fill: CHART_COLORS[0], r: 3 }}
-                  activeDot={{ r: 5 }}
+                  dot={false}
+                  activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2 }}
                 />
               </AreaChart>
             </ChartShell>
           </Card>
         </Col>
-        <Col xs={24} lg={12}>
-          <Card variant="borderless" className="app-card">
-            <Typography.Title level={5} style={{ marginTop: 0 }}>
-              Faturamento por mês
-            </Typography.Title>
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 12, fontSize: 13 }}>
-              Total em <strong>reais (R$)</strong> faturado em cada mês do período selecionado acima.
-            </Typography.Paragraph>
-            <ChartShell>
-              <BarChart data={data.revenue} margin={{ left: 8, right: 8 }}>
+        <Col xs={24} lg={10}>
+          <Card variant="borderless" className="app-card no-hover" title="Faturamento mensal">
+            <ChartShell height={280}>
+              <BarChart data={revenueFullMonths} margin={{ left: 0, right: 8 }}>
                 <CartesianGrid {...gridProps} />
                 <XAxis dataKey="month" {...xAxisProps} />
-                <YAxis tickFormatter={formatBRLAxisShort} {...yAxisProps} width={56} />
-                <Tooltip content={<ChartTooltip format="currency" />} />
-                <Bar dataKey="value" name="Faturamento" fill={CHART_COLORS[0]} fillOpacity={0.75} radius={[6, 6, 0, 0]} />
+                <YAxis tickFormatter={formatBRLAxisShort} {...yAxisProps} width={50} />
+                <Tooltip content={<DarkTooltip />} />
+                <Bar dataKey="value" name="Faturamento" radius={[6, 6, 0, 0]}>
+                  {revenueFullMonths.map((_, i) => (
+                    <Cell
+                      key={i}
+                      fill={CHART_COLORS[0]}
+                      fillOpacity={i === revenueFullMonths.length - 1 ? 1 : 0.55}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ChartShell>
           </Card>
         </Col>
       </Row>
 
-      <Card className="app-card" variant="borderless">
-        <Space orientation="vertical" size={6}>
-          <Typography.Title level={5} style={{ margin: 0 }}>
-            Navegação por contexto
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            Para evitar poluição visual, os dados foram separados em telas específicas.
-          </Typography.Text>
-          <Space wrap>
-            <Button type="primary" aria-label="Abrir página de análises BI">
-              <Link to="/dashboard/analises">Abrir Análises BI</Link>
-            </Button>
-            <Button aria-label="Abrir página de dados detalhados">
-              <Link to="/dashboard/dados">Abrir Dados detalhados</Link>
-            </Button>
-          </Space>
-          <Typography.Text type="secondary">
-            Faturamento acumulado no período: <strong>{formatBRL(revenueTotal)}</strong>
-          </Typography.Text>
-          <Typography.Text type="secondary">
-            Pontos de vendas analisados no recorte atual: <strong>{filteredSales.length}</strong>
-          </Typography.Text>
-          <Typography.Text type="secondary">
-            Última atualização de dados: {dayjs(dashboardQuery.dataUpdatedAt).format('DD/MM/YYYY HH:mm:ss')}
-          </Typography.Text>
-          {lastPulseAt ? (
-            <Typography.Text type="secondary">
-              Sinal de tempo real recebido: {dayjs(lastPulseAt).format('DD/MM/YYYY HH:mm:ss')}
-            </Typography.Text>
-          ) : null}
-        </Space>
-      </Card>
-
+      {/* ── Top clientes + Vendas por dia da semana ── */}
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <Card className="app-card" variant="borderless" title="Insights automáticos">
-            {!insights.suggestions.length ? (
-              <Typography.Text type="secondary">Sem sugestões automáticas no momento.</Typography.Text>
+          <Card variant="borderless" className="app-card no-hover" title="Top 5 clientes por faturamento">
+            {derived.topClientes.length === 0 ? (
+              <Typography.Text type="secondary">Sem dados no período</Typography.Text>
             ) : (
-              <ul style={{ margin: 0, paddingInlineStart: 20 }}>
-                {insights.suggestions.map((item, i) => (
-                  <li key={`s-${i}`}>
-                    <Typography.Text>{item}</Typography.Text>
-                  </li>
-                ))}
-              </ul>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {derived.topClientes.map((cli, i) => {
+                  const pct = derived.faturamento > 0 ? (cli.value / derived.faturamento) * 100 : 0
+                  return (
+                    <div key={cli.name} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px', borderRadius: 10,
+                      background: 'var(--qc-canvas)', border: '1px solid var(--qc-border)',
+                    }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 8,
+                        background: CHART_COLORS[i],
+                        display: 'grid', placeItems: 'center',
+                        color: '#fff', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                      }}>
+                        {i + 1}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <Typography.Text ellipsis style={{ display: 'block', fontWeight: 500, fontSize: 13 }}>
+                          {cli.name}
+                        </Typography.Text>
+                        <div style={{
+                          height: 4, borderRadius: 2, marginTop: 4,
+                          background: 'var(--qc-border)', overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%', borderRadius: 2,
+                            width: `${Math.min(pct, 100)}%`,
+                            background: CHART_COLORS[i],
+                            transition: 'width 0.6s ease',
+                          }} />
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <Typography.Text strong style={{ fontVariantNumeric: 'tabular-nums', fontSize: 14 }}>
+                          {formatCompact(cli.value)}
+                        </Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                          {pct.toFixed(1)}%
+                        </Typography.Text>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </Card>
         </Col>
         <Col xs={24} lg={12}>
-          <Card className="app-card" variant="borderless" title="Anomalias detectadas">
-            {!insights.anomalies.length ? (
-              <Typography.Text type="secondary">Nenhuma anomalia relevante detectada.</Typography.Text>
-            ) : (
-              <ul style={{ margin: 0, paddingInlineStart: 20 }}>
-                {insights.anomalies.map((item, i) => (
-                  <li key={`a-${i}`}>
-                    <Typography.Text>{item}</Typography.Text>
-                  </li>
-                ))}
-              </ul>
+          <Card variant="borderless" className="app-card no-hover" title="Faturamento por dia da semana">
+            <ChartShell height={240}>
+              <ComposedChart data={derived.byDayOfWeek} margin={{ left: 0, right: 8 }}>
+                <CartesianGrid {...gridProps} />
+                <XAxis dataKey="day" {...xAxisProps} />
+                <YAxis yAxisId="left" {...yAxisProps} allowDecimals={false} />
+                <YAxis yAxisId="right" orientation="right" {...yAxisProps} tickFormatter={formatBRLAxisShort} width={50} />
+                <Tooltip content={<DarkTooltip />} />
+                <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                <Bar yAxisId="left" dataKey="qty" name="Pedidos" fill={CHART_COLORS[1]} fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="revenue" name="Faturamento" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 4, fill: CHART_COLORS[0] }} />
+              </ComposedChart>
+            </ChartShell>
+            {derived.bestDay && derived.bestDay.revenue > 0 && (
+              <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+                <CalendarOutlined style={{ marginRight: 4 }} />
+                Melhor dia: <strong>{derived.bestDay.day}</strong> com {formatCompact(derived.bestDay.revenue)}
+              </Typography.Text>
             )}
           </Card>
+        </Col>
+      </Row>
+
+      {/* ── Últimas vendas ── */}
+      <Card variant="borderless" className="app-card no-hover" title="Últimas vendas">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: 10,
+        }}>
+          {derived.ultimasVendas.map((venda, i) => (
+            <div key={venda.id} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 14px', borderRadius: 10,
+              background: 'var(--qc-canvas)', border: '1px solid var(--qc-border)',
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: venda.status === 'pago'
+                  ? 'rgba(16, 185, 129, 0.12)'
+                  : venda.status === 'pendente'
+                    ? 'rgba(245, 158, 11, 0.12)'
+                    : 'rgba(244, 63, 94, 0.12)',
+                display: 'grid', placeItems: 'center', flexShrink: 0,
+              }}>
+                {venda.status === 'pago'
+                  ? <ArrowUpOutlined style={{ color: '#10B981', fontSize: 14 }} />
+                  : venda.status === 'pendente'
+                    ? <ShoppingCartOutlined style={{ color: '#F59E0B', fontSize: 14 }} />
+                    : <ArrowDownOutlined style={{ color: '#F43F5E', fontSize: 14 }} />}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Typography.Text ellipsis style={{ display: 'block', fontWeight: 500, fontSize: 13 }}>
+                  {venda.cliente}
+                </Typography.Text>
+                <Typography.Text ellipsis type="secondary" style={{ fontSize: 11, display: 'block', maxWidth: 200 }}>
+                  {venda.produto} · {dayjs(venda.data).format('DD/MM')}
+                </Typography.Text>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <Typography.Text strong style={{ fontVariantNumeric: 'tabular-nums', fontSize: 14 }}>
+                  {formatBRL(venda.total)}
+                </Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 10, display: 'block' }}>
+                  {venda.margem.toFixed(1)}% margem
+                </Typography.Text>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 12, textAlign: 'center' }}>
+          <Button type="link">
+            <Link to="/dashboard/vendas-analitico">Ver todas as vendas</Link>
+          </Button>
+        </div>
+      </Card>
+
+      {/* ── Acesso rápido ── */}
+      <Row gutter={[12, 12]}>
+        <Col xs={24} sm={8}>
+          <Link to="/dashboard/analises" style={{ display: 'block' }}>
+            <Card className="app-card" variant="borderless" hoverable style={{ textAlign: 'center', padding: '8px 0' }}>
+              <RiseOutlined style={{ fontSize: 22, color: CHART_COLORS[0], marginBottom: 4 }} />
+              <Typography.Text strong style={{ display: 'block', fontSize: 13 }}>Análises BI</Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>Gráficos detalhados</Typography.Text>
+            </Card>
+          </Link>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Link to="/dashboard/vendas-analitico" style={{ display: 'block' }}>
+            <Card className="app-card" variant="borderless" hoverable style={{ textAlign: 'center', padding: '8px 0' }}>
+              <ShoppingCartOutlined style={{ fontSize: 22, color: CHART_COLORS[1], marginBottom: 4 }} />
+              <Typography.Text strong style={{ display: 'block', fontSize: 13 }}>Vendas</Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>Consulta analítica</Typography.Text>
+            </Card>
+          </Link>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Link to="/financeiro" style={{ display: 'block' }}>
+            <Card className="app-card" variant="borderless" hoverable style={{ textAlign: 'center', padding: '8px 0' }}>
+              <DollarOutlined style={{ fontSize: 22, color: '#10B981', marginBottom: 4 }} />
+              <Typography.Text strong style={{ display: 'block', fontSize: 13 }}>Financeiro</Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>Receitas e custos</Typography.Text>
+            </Card>
+          </Link>
         </Col>
       </Row>
     </Space>

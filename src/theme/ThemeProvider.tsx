@@ -67,7 +67,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       token: {
         // Typography / spacing
         fontFamily:
-          "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif",
+          "Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
         fontSize: 14,
         borderRadius: 12,
         controlHeight: 36,

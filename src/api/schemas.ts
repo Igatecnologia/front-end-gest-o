@@ -31,6 +31,13 @@ export const dashboardLatestRowSchema = z.object({
   total: z.number(),
   status: z.enum(['pago', 'pendente', 'cancelado']),
   data: z.string().min(1),
+  produto: z.string().default(''),
+  codprod: z.union([z.number(), z.string()]).default(''),
+  codcliente: z.union([z.number(), z.string()]).default(''),
+  qtde: z.number().default(0),
+  valorunit: z.number().default(0),
+  custounit: z.number().default(0),
+  margem: z.number().default(0),
 })
 
 export const dashboardResponseSchema = z.object({
@@ -489,6 +496,8 @@ export const dataSourceCreateSchema = z.object({
   apiUrl: z.string().url(),
   authMethod: z.enum(['none', 'bearer_token', 'api_key', 'basic_auth']),
   authCredentials: z.string().optional(),
+  apiLogin: z.string().optional(),
+  apiPassword: z.string().optional(),
   fieldMappings: z.array(fieldMappingSchema).default([]),
   erpEndpoints: z.array(z.string()).default([]),
   isAuthSource: z.boolean().default(false),

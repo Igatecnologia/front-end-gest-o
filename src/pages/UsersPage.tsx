@@ -242,8 +242,8 @@ export function UsersPage() {
   return (
     <Space orientation="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
-        title="Usuários"
-        subtitle="Gerencie os usuarios que acessam o sistema."
+        title="Funcionários"
+        subtitle="Gerencie os funcionários que acessam o sistema."
         extra={headerExtra}
       />
 
