@@ -9,6 +9,7 @@ export function MetricCard({
   deltaPct,
   hero,
   loading,
+  subtitle,
   description,
   accentColor,
 }: {
@@ -18,6 +19,7 @@ export function MetricCard({
   deltaPct?: number
   hero?: boolean
   loading?: boolean
+  subtitle?: string
   description?: string
   accentColor?: string
 }) {
@@ -45,6 +47,9 @@ export function MetricCard({
         <span className={`metric-card__value${hero ? ' metric-card__value--hero' : ''}`}>
           {value}
         </span>
+        {subtitle && (
+          <span className="metric-card__prev">{subtitle}</span>
+        )}
         {previousValue !== undefined && (
           <span className="metric-card__prev">Anterior: {previousValue}</span>
         )}

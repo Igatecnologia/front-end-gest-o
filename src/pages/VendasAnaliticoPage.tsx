@@ -2,9 +2,11 @@ import {
   DollarOutlined,
   EyeOutlined,
   PercentageOutlined,
+  PieChartOutlined,
   ReloadOutlined,
   ShoppingCartOutlined,
   TeamOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons'
 import {
   Alert,
@@ -18,11 +20,12 @@ import {
   Select,
   Skeleton,
   Space,
+  Tabs,
   Tag,
   Typography,
 } from 'antd'
 import dayjs from 'dayjs'
-import { useMemo, useState } from 'react'
+import { Suspense, lazy, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { DevErrorDetail } from '../components/DevErrorDetail'
@@ -36,6 +39,10 @@ import { queryKeys } from '../query/queryKeys'
 import { getVendasAnalitico } from '../services/vendasAnaliticoService'
 import { nowBr } from '../utils/dayjsBr'
 import { formatBRL, formatCompact } from '../utils/formatters'
+
+const CurvaAbcTab = lazy(() =>
+  import('./vendas/CurvaAbcTab').then((m) => ({ default: m.CurvaAbcTab })),
+)
 
 function statusTag(code: string) {
   const c = code.trim().toUpperCase()
@@ -65,6 +72,7 @@ type PedidoAgrupado = {
   totalPedido: number
   totalCusto: number
   totalQtd: number
+  undPrincipal: string
   margem: number
   qtdProdutos: number
 }
@@ -75,7 +83,7 @@ function defaultRange(): { start: string; end: string } {
   return { start: start.format('YYYY-MM-DD'), end: end.format('YYYY-MM-DD') }
 }
 
-export function VendasAnaliticoPage() {
+function PedidosContent() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { start: defStart, end: defEnd } = defaultRange()
   const start = searchParams.get('start') ?? defStart
@@ -108,6 +116,17 @@ export function VendasAnaliticoPage() {
       const totalPedido = itens.reduce((s, r) => s + r.total, 0)
       const totalCusto = itens.reduce((s, r) => s + r.precocustoitem * r.qtdevendida, 0)
       const totalQtd = itens.reduce((s, r) => s + r.qtdevendida, 0)
+      /* Unidade mais frequente no pedido */
+      const undCount = new Map<string, number>()
+      for (const it of itens) {
+        if (it.und) undCount.set(it.und, (undCount.get(it.und) ?? 0) + 1)
+      }
+      let undPrincipal = ''
+      let maxCount = 0
+      for (const [u, c] of undCount) {
+        if (c > maxCount) { undPrincipal = u; maxCount = c }
+      }
+
       result.push({
         key,
         cliente: String(first.nomecliente),
@@ -120,6 +139,7 @@ export function VendasAnaliticoPage() {
         totalPedido,
         totalCusto,
         totalQtd,
+        undPrincipal,
         margem: totalPedido > 0 ? ((totalPedido - totalCusto) / totalPedido) * 100 : 0,
         qtdProdutos: itens.length,
       })
@@ -153,41 +173,25 @@ export function VendasAnaliticoPage() {
 
   if (!biConfigured) {
     return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <PageHeaderCard title="Vendas" subtitle="Configure uma fonte de dados para visualizar as vendas." />
-        <Alert type="warning" showIcon message="Nenhuma fonte de dados configurada" description="Acesse Fontes de Dados para configurar a conexão com a API." />
-      </Space>
+      <Alert type="warning" showIcon message="Nenhuma fonte de dados configurada" description="Acesse Fontes de Dados para configurar a conexão com a API." />
     )
   }
 
   if (query.isLoading) {
-    return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <PageHeaderCard title="Vendas" subtitle="Carregando dados..." />
-        <Card className="app-card" variant="borderless"><Skeleton active paragraph={{ rows: 8 }} /></Card>
-      </Space>
-    )
+    return <Card className="app-card" variant="borderless"><Skeleton active paragraph={{ rows: 8 }} /></Card>
   }
 
   if (query.isError) {
     return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <PageHeaderCard title="Vendas" subtitle="Erro ao carregar" />
-        <Alert type="error" showIcon message="Falha ao carregar vendas"
-          description={<>{getErrorMessage(query.error, 'Erro.')}<DevErrorDetail error={query.error} /></>}
-          action={<Button size="small" onClick={() => query.refetch()}>Tentar novamente</Button>}
-        />
-      </Space>
+      <Alert type="error" showIcon message="Falha ao carregar vendas"
+        description={<>{getErrorMessage(query.error, 'Erro.')}<DevErrorDetail error={query.error} /></>}
+        action={<Button size="small" onClick={() => query.refetch()}>Tentar novamente</Button>}
+      />
     )
   }
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <PageHeaderCard
-        title="Vendas"
-        subtitle="Visão consolidada por pedido. Clique em uma venda para ver os produtos."
-        extra={<Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>Atualizar</Button>}
-      />
 
       {/* ── Filtros ── */}
       <Card className="app-card no-hover" variant="borderless">
@@ -332,7 +336,7 @@ export function VendasAnaliticoPage() {
                       </div>
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                      {pedido.totalQtd.toLocaleString('pt-BR')}
+                      {pedido.totalQtd.toLocaleString('pt-BR')}{pedido.undPrincipal ? ` ${pedido.undPrincipal}` : ''}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                       {formatBRL(pedido.totalPedido)}
@@ -366,6 +370,70 @@ export function VendasAnaliticoPage() {
         pedido={detailPedido}
         onClose={() => setDetailPedido(null)}
       />
+    </Space>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
+   Página principal — Vendas (com abas)
+   ═══════════════════════════════════════════════════════ */
+
+const tabFallback = <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 24 }} />
+
+export function VendasAnaliticoPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = searchParams.get('view') ?? 'pedidos'
+
+  const handleTabChange = (key: string) => {
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev)
+      if (key === 'pedidos') p.delete('view')
+      else p.set('view', key)
+      return p
+    }, { replace: true })
+  }
+
+  const tabItems = [
+    {
+      key: 'pedidos',
+      label: (
+        <span>
+          <UnorderedListOutlined /> Pedidos
+        </span>
+      ),
+      children: <PedidosContent />,
+    },
+    {
+      key: 'curva-abc',
+      label: (
+        <span>
+          <PieChartOutlined /> Curva ABC
+        </span>
+      ),
+      children: (
+        <Suspense fallback={tabFallback}>
+          <CurvaAbcTab />
+        </Suspense>
+      ),
+    },
+  ]
+
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <PageHeaderCard
+        title="Vendas"
+        subtitle="Análise de vendas: pedidos, faturamento e curva ABC."
+      />
+
+      <Card className="app-card no-hover" variant="borderless" style={{ padding: 0 }}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={handleTabChange}
+          type="card"
+          size="large"
+          items={tabItems}
+        />
+      </Card>
     </Space>
   )
 }

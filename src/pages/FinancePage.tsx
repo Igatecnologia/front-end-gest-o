@@ -14,9 +14,6 @@ import {
   SwapOutlined,
   CreditCardOutlined,
   DollarOutlined,
-  InboxOutlined,
-  BuildOutlined,
-  ShoppingCartOutlined,
   FundOutlined,
 } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
@@ -47,15 +44,6 @@ const ContasPagarTab = lazy(() =>
 )
 const ContasReceberTab = lazy(() =>
   import('./finance/ContasReceberTab').then((m) => ({ default: m.ContasReceberTab })),
-)
-const EstoqueMateriaPrimaTab = lazy(() =>
-  import('./finance/EstoqueMateriaPrimaTab').then((m) => ({ default: m.EstoqueMateriaPrimaTab })),
-)
-const EstoqueEspumaTab = lazy(() =>
-  import('./finance/EstoqueEspumaTab').then((m) => ({ default: m.EstoqueEspumaTab })),
-)
-const VendasEspumaTab = lazy(() =>
-  import('./finance/VendasEspumaTab').then((m) => ({ default: m.VendasEspumaTab })),
 )
 
 function formatBRL(value: number) {
@@ -344,43 +332,13 @@ export function FinancePage() {
         </Suspense>
       ),
     },
-    {
-      key: 'estoque-materia-prima',
-      label: 'Estoque Mat. Prima',
-      icon: <InboxOutlined />,
-      children: (
-        <Suspense fallback={tabFallback}>
-          <EstoqueMateriaPrimaTab />
-        </Suspense>
-      ),
-    },
-    {
-      key: 'estoque-espuma',
-      label: 'Estoque Espuma/Aglom.',
-      icon: <BuildOutlined />,
-      children: (
-        <Suspense fallback={tabFallback}>
-          <EstoqueEspumaTab />
-        </Suspense>
-      ),
-    },
-    {
-      key: 'vendas-espuma',
-      label: 'Vendas Espuma/Aglom.',
-      icon: <ShoppingCartOutlined />,
-      children: (
-        <Suspense fallback={tabFallback}>
-          <VendasEspumaTab />
-        </Suspense>
-      ),
-    },
   ]
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
         title="Financeiro"
-        subtitle="Controle financeiro completo: visão geral, conciliação, contas, estoque e vendas."
+        subtitle="Controle financeiro completo: visão geral, conciliação e contas."
       />
 
       <Card className="app-card no-hover" variant="borderless" style={{ padding: 0 }}>

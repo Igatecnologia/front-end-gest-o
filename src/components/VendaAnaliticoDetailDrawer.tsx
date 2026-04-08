@@ -58,6 +58,7 @@ type PedidoAgrupado = {
   totalPedido: number
   totalCusto: number
   totalQtd: number
+  undPrincipal: string
   margem: number
   qtdProdutos: number
 }
@@ -233,6 +234,12 @@ export function VendaAnaliticoDetailDrawer({ open, pedido, onClose }: Props) {
                 fontSize: 12, color: 'var(--qc-text-muted)',
               }}>
                 <span>{p.qtdTotal.toLocaleString('pt-BR')} {p.item.und} × {formatBRL(p.item.valorunit)}</span>
+                {p.item.qtdeconvertidavd > 0 && p.item.qtdeconvertidavd !== p.qtdTotal && (
+                  <>
+                    <span>·</span>
+                    <span>Convertido: {p.item.qtdeconvertidavd.toLocaleString('pt-BR')} {p.item.und}</span>
+                  </>
+                )}
                 <span>·</span>
                 <span>Custo: {formatBRL(p.item.precocustoitem)}/un</span>
                 <span>·</span>

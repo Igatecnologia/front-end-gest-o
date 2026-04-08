@@ -46,6 +46,9 @@ const FichaTecnicaPage = lazy(() =>
 const ComercialPage = lazy(() =>
   import('../pages/ComercialPage').then((m) => ({ default: m.ComercialPage })),
 )
+const EstoquePage = lazy(() =>
+  import('../pages/EstoquePage').then((m) => ({ default: m.EstoquePage })),
+)
 const DashboardOperacionalPage = lazy(() =>
   import('../pages/DashboardOperacionalPage').then((m) => ({
     default: m.DashboardOperacionalPage,
@@ -165,6 +168,14 @@ export function AppRouter() {
             element={
               <RequirePermission permission="comercial:view">
                 <ComercialPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/estoque"
+            element={
+              <RequirePermission permission="estoque:view">
+                <EstoquePage />
               </RequirePermission>
             }
           />

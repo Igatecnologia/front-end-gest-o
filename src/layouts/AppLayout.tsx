@@ -10,6 +10,7 @@ import {
   FileSearchOutlined,
   FileTextOutlined,
   HomeOutlined,
+  InboxOutlined,
   MenuOutlined,
   MoonOutlined,
   ProfileOutlined,
@@ -53,6 +54,7 @@ function useSelectedMenuKey(pathname: string) {
     if (pathname.startsWith('/producao')) return 'producao'
     if (pathname.startsWith('/ficha-tecnica')) return 'ficha-tecnica'
     if (pathname.startsWith('/comercial')) return 'comercial'
+    if (pathname.startsWith('/estoque')) return 'estoque'
     if (pathname.startsWith('/operacional')) return 'operacional'
     if (pathname.startsWith('/alertas')) return 'alertas'
     if (pathname.startsWith('/fontes-de-dados')) return 'fontes-de-dados'
@@ -64,7 +66,7 @@ function useSelectedMenuKey(pathname: string) {
 function useOpenSubMenuKeys(selectedKey: string) {
   return useMemo(() => {
     if (selectedKey.startsWith('dashboard') || selectedKey === 'operacional' || selectedKey === 'alertas') return ['sub-dashboard']
-    if (selectedKey === 'producao' || selectedKey === 'ficha-tecnica' || selectedKey === 'comercial') return ['sub-erp']
+    if (selectedKey === 'producao' || selectedKey === 'ficha-tecnica' || selectedKey === 'comercial' || selectedKey === 'estoque') return ['sub-erp']
     if (selectedKey === 'financeiro' || selectedKey === 'relatorios') return ['sub-analytics']
     if (['usuarios', 'auditoria', 'fontes-de-dados'].includes(selectedKey)) return ['sub-admin']
     return ['sub-dashboard']
@@ -114,6 +116,9 @@ export function AppLayout() {
       }
       if (hasPermission(session, 'comercial:view')) {
         erpChildren.push({ key: 'comercial', icon: <ShoppingCartOutlined />, label: <Link to="/comercial">Comercial</Link> })
+      }
+      if (hasPermission(session, 'estoque:view')) {
+        erpChildren.push({ key: 'estoque', icon: <InboxOutlined />, label: <Link to="/estoque">Estoque</Link> })
       }
       if (erpChildren.length) {
         items.push({
@@ -310,6 +315,7 @@ export function AppLayout() {
                   producao: 'Produção',
                   'ficha-tecnica': 'Ficha Técnica',
                   comercial: 'Comercial',
+                  estoque: 'Estoque',
                   operacional: 'Dashboard Operacional',
                   alertas: 'Alertas',
                   'fontes-de-dados': 'Conexoes',
