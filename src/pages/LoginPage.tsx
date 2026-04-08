@@ -114,13 +114,17 @@ export function LoginPage() {
             ) : null}
 
             <Form.Item
-              label="Usuario"
+              label="Usuário"
               name="email"
-              rules={[{ required: true, message: 'Informe o usuario.' }]}
+              rules={[
+                { required: true, message: 'Informe o usuário.' },
+                { max: 254, message: 'Máximo 254 caracteres.' },
+              ]}
+              normalize={(v: string) => v.trim()}
             >
               <Input
                 prefix={<UserOutlined />}
-                placeholder="Usuario"
+                placeholder="Email ou usuário"
                 autoComplete="username"
                 maxLength={254}
               />
@@ -129,7 +133,10 @@ export function LoginPage() {
             <Form.Item
               label="Senha"
               name="password"
-              rules={[{ required: true, message: 'Informe a senha.' }]}
+              rules={[
+                { required: true, message: 'Informe a senha.' },
+                { min: 1, message: 'Senha não pode ser vazia.' },
+              ]}
             >
               <Input.Password
                 prefix={<LockOutlined />}

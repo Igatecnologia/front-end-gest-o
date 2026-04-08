@@ -49,6 +49,9 @@ export function createAuthorizedAxios(baseURL: string, timeoutMs = 20_000): Axio
     return config
   })
 
+  /** Evita múltiplos logouts simultâneos */
+  let logoutEmitted = false
+
   instance.interceptors.response.use(
     (res) => res,
     (err) => {
@@ -56,9 +59,12 @@ export function createAuthorizedAxios(baseURL: string, timeoutMs = 20_000): Axio
       const url = err?.config?.url ?? ''
       // Não fazer logout automático em chamadas de proxy/login — usam tokens externos
       const isProxyOrLogin = url.includes('/api/proxy') || url.includes('/auth/login')
-      if (status === 401 && !isProxyOrLogin) {
+      if (status === 401 && !isProxyOrLogin && !logoutEmitted) {
+        logoutEmitted = true
         setStoredSession(null)
         emitAuthSignOut()
+        // Reset após um breve delay para permitir novos logouts após re-login
+        setTimeout(() => { logoutEmitted = false }, 2000)
       }
       if (err && typeof err === 'object') {
         ;(err as { contextMessage?: string }).contextMessage = getHttpStatusMessage(status)

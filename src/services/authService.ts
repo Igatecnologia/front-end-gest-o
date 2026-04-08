@@ -1,7 +1,6 @@
 import type { AuthSession } from '../auth/authStorage'
 import { postValidated } from '../api/validatedHttp'
 import { localLoginResponseSchema, sgbrUsuarioLoginResponseSchema } from '../api/schemas'
-import { getErrorMessage } from '../api/httpError'
 import { http } from './http'
 import { getAuthDataSource } from './dataSourceService'
 
@@ -26,13 +25,16 @@ const ALL_PERMISSIONS: AuthSession['permissions'] = [
   'alertas:view',
 ]
 
+/** Mensagem genérica — não revela se o usuário existe ou não */
+const INVALID_CREDENTIALS_MSG = 'Usuário ou senha incorretos.'
+
 /**
  * Tenta login local (usuarios do proprio sistema).
  * Se falhar com 401, e houver fonte SGBR configurada como auth, tenta via proxy.
  */
 export async function signIn(input: SignInInput): Promise<AuthSession> {
   const login = input.email.trim()
-  if (!login) throw new Error('Informe o usuario.')
+  if (!login) throw new Error('Informe o usuário.')
 
   // 1. Tenta login local
   try {
@@ -49,13 +51,12 @@ export async function signIn(input: SignInInput): Promise<AuthSession> {
       permissions: ALL_PERMISSIONS,
     }
   } catch (localErr) {
-    // Se não for 401, é erro de servidor — lança direto
     const is401 =
       localErr instanceof Error &&
       (localErr.message.includes('401') || localErr.message.includes('incorretos'))
 
     if (!is401) {
-      throw new Error(getErrorMessage(localErr, 'Falha ao fazer login.'))
+      throw new Error('Falha ao conectar com o servidor. Tente novamente.')
     }
 
     // 2. Se houver fonte SGBR marcada como auth, tenta via proxy
@@ -81,12 +82,11 @@ export async function signIn(input: SignInInput): Promise<AuthSession> {
           },
           permissions: ALL_PERMISSIONS,
         }
-      } catch (sgbrErr) {
-        throw new Error(getErrorMessage(sgbrErr, 'Usuario ou senha incorretos.'))
+      } catch {
+        throw new Error(INVALID_CREDENTIALS_MSG)
       }
     }
 
-    // Sem fonte SGBR — erro do login local
-    throw new Error(getErrorMessage(localErr, 'Usuario ou senha incorretos.'))
+    throw new Error(INVALID_CREDENTIALS_MSG)
   }
 }

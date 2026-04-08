@@ -7,6 +7,7 @@ import { onAuthSignOut } from './authEvents'
 import { useSessionTimeout } from './useSessionTimeout'
 import { http } from '../services/http'
 import { tenantStorage } from '../tenant/tenantStorage'
+import { queryClient } from '../query/queryClient'
 
 /** Tempo de inatividade antes do auto-logout (30 minutos) */
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000
@@ -28,7 +29,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null)
     setStoredSession(null)
     tenantStorage.removeItem('auth.session')
+
+    // Limpar cache do React Query para evitar dados stale no re-login
+    queryClient.clear()
   }, [])
+
+  // Validar sessão armazenada com o backend no startup
+  useEffect(() => {
+    if (!session?.token) return
+    let cancelled = false
+
+    http.get('/health').catch(() => {
+      // Se o backend estiver indisponível, manter sessão (offline)
+    }).then((res) => {
+      if (cancelled) return
+      // Se o backend respondeu mas a sessão pode ter expirado,
+      // a próxima chamada autenticada vai retornar 401 e o interceptor faz logout
+    })
+
+    return () => { cancelled = true }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-logout por inatividade
   useSessionTimeout(
