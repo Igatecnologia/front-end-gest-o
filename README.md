@@ -51,76 +51,157 @@ git --version     # deve mostrar qualquer versao
 
 ---
 
-## Guia de instalacao passo a passo
+## Guia completo de configuracao (backend + frontend)
 
-### Passo 1 — Clonar os dois repositorios
+### 1) Clonar os dois repositorios
 
-Abra o terminal e escolha uma pasta para o projeto. Execute:
+Abra o terminal e escolha uma pasta de trabalho:
 
 ```bash
-# Criar pasta do projeto
 mkdir iga-gestao
 cd iga-gestao
-
-# Clonar o backend
 git clone https://github.com/Igatecnologia/back-end-gest-o.git
-
-# Clonar o frontend
 git clone https://github.com/Igatecnologia/front-end-gest-o.git
 ```
 
-Voce tera esta estrutura:
+Estrutura esperada:
+
 ```
 iga-gestao/
-  back-end-gest-o/    ← backend (API)
-  front-end-gest-o/   ← frontend (tela)
+  back-end-gest-o/    ← API (Node/Express)
+  front-end-gest-o/   ← Aplicacao web (React/Vite)
 ```
 
-### Passo 2 — Instalar e iniciar o BACKEND (primeiro!)
+### 2) Configurar o BACKEND
+
+No terminal:
 
 ```bash
 cd back-end-gest-o
 npm install
+```
+
+Se o backend possuir `.env.example`, crie o `.env` local:
+
+```bash
+cp .env.example .env
+```
+
+No Windows PowerShell (alternativa):
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Depois, inicie o backend:
+
+```bash
 npm run dev
 ```
 
-Deve aparecer:
-```
-[IGA Backend] http://localhost:3000
-```
+Validacao rapida:
 
-**Deixe este terminal aberto.** O backend precisa ficar rodando.
-
-Para confirmar que esta funcionando, abra outro terminal e execute:
 ```bash
 curl http://localhost:3000/health
 ```
-Deve retornar: `{"status":"ok",...}`
 
-### Passo 3 — Instalar e iniciar o FRONTEND
+Retorno esperado: `{"status":"ok",...}`.
 
-Abra um **novo terminal** (sem fechar o do backend) e execute:
+> Importante: mantenha este terminal aberto. O frontend depende do backend ativo.
+
+### 3) Configurar o FRONTEND
+
+Abra um novo terminal:
 
 ```bash
 cd iga-gestao/front-end-gest-o
 npm install
+```
+
+Crie o arquivo de ambiente local:
+
+```bash
+cp .env.example .env.local
+```
+
+No Windows PowerShell (alternativa):
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+Garanta pelo menos esta variavel em `.env.local`:
+
+```env
+VITE_API_BASE_URL=http://localhost:3000
+```
+
+Agora suba o frontend:
+
+```bash
 npm run dev
 ```
 
-Deve aparecer:
-```
-  VITE v8.x.x  ready in xxx ms
-  ➜  Local:   http://localhost:5173/
-```
+Abra no navegador:
 
-### Passo 4 — Acessar o sistema
+- `http://localhost:5173`
 
-1. Abra o navegador em **http://localhost:5173**
-2. Faca login com `admin@iga.com` / `admin123`
+### 4) Primeiro acesso ao sistema
 
-### Passo 5 — Configurar a fonte de dados (primeira vez)
+Use o login padrao:
 
-Apos o login, va em **Fontes de Dados** no menu e clique em **Nova conexao**. Preencha com os dados fornecidos pelo administrador do sistema (endereco do servidor, credenciais e endpoints). Clique em **Testar agora** para validar e depois **Salvar**.
+- Usuario: `admin@iga.com`
+- Senha: `admin123`
+
+### 5) Configurar fonte de dados (obrigatorio para BI real)
+
+No menu, acesse `Fontes de Dados` e cadastre uma conexao com os dados do seu ERP/API:
+
+- URL da API
+- metodo de autenticacao
+- endpoint de login
+- endpoint de dados
+- mapeamento de campos (se necessario)
+
+Depois clique em `Testar agora` e `Salvar`.
+
+### 6) Checklist de validacao final
+
+- Backend responde em `http://localhost:3000/health`
+- Frontend abre em `http://localhost:5173`
+- Login funciona com usuario admin
+- `GET /api/v1/datasources` retorna ao menos 1 fonte configurada
+- Dashboard/Financeiro/Relatorios carregam sem erro
+
+### 7) Erros comuns e como resolver
+
+- **Tela mostra "Sistema ainda nao configurado"**
+  - Verifique se existe fonte salva em `Fontes de Dados`.
+  - Confira no Network se `GET /api/v1/datasources` retorna lista vazia.
+  - Confirme se `VITE_API_BASE_URL` aponta para o backend correto.
+- **Frontend sem comunicar com backend**
+  - Backend parado ou porta diferente de `3000`.
+  - URL da API incorreta no `.env.local`.
+- **Falha de login**
+  - Teste primeiro `POST /api/v1/auth/login`.
+  - Se usar login externo (proxy), valide credenciais e endpoint na fonte.
+
+### 8) Onboarding rapido para novos devs (sem se perder)
+
+Siga exatamente esta ordem no primeiro dia:
+
+1. Suba o backend e valide `GET /health`.
+2. Suba o frontend com `VITE_API_BASE_URL` apontando para o backend local.
+3. Faça login com `admin@iga.com`.
+4. Confira `Fontes de Dados` (deve existir ao menos 1 conexao para BI real).
+5. Teste as rotas principais: `/dashboard`, `/financeiro`, `/relatorios`.
+
+Se algo falhar, valide primeiro:
+
+- porta do backend (`3000`)
+- porta do frontend (`5173`)
+- URL da API no `.env.local`
+- resposta de `GET /api/v1/datasources`
 
 ---
 
