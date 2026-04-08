@@ -1,4 +1,4 @@
-import type { ConciliacaoRow, ContaPagar, ContaReceber, EstoqueMateriaPrima, EstoqueEspuma, VendaEspuma } from '../types/models'
+import type { ConciliacaoRow, ContaPagar, ContaReceber, EstoqueMateriaPrima, EstoqueEspuma, EstoqueProdutoFinal, VendaEspuma } from '../types/models'
 import { getValidated } from '../api/validatedHttp'
 import {
   conciliacaoResponseSchema,
@@ -6,6 +6,7 @@ import {
   contasReceberResponseSchema,
   estoqueMateriaPrimaResponseSchema,
   estoqueEspumaResponseSchema,
+  estoqueProdutoFinalResponseSchema,
   vendasEspumaResponseSchema,
 } from '../api/schemas'
 import { http } from './http'
@@ -28,6 +29,10 @@ export async function getEstoqueMateriaPrima(): Promise<EstoqueMateriaPrima[]> {
 
 export async function getEstoqueEspuma(): Promise<EstoqueEspuma[]> {
   return getValidated(http, '/finance/estoque-espuma', estoqueEspumaResponseSchema) as Promise<EstoqueEspuma[]>
+}
+
+export async function getEstoqueProdutoFinal(): Promise<EstoqueProdutoFinal[]> {
+  return getValidated(http, '/finance/estoque-produto-final', estoqueProdutoFinalResponseSchema) as Promise<EstoqueProdutoFinal[]>
 }
 
 export async function getVendasEspuma(): Promise<VendaEspuma[]> {

@@ -269,6 +269,23 @@ export const estoqueEspumaSchema = z.object({
 })
 export const estoqueEspumaResponseSchema = z.array(estoqueEspumaSchema)
 
+export const estoqueProdutoFinalSchema = z.object({
+  id: z.string().min(1),
+  produto: z.string().min(1),
+  tipo: z.enum(['Espuma', 'Aglomerado']),
+  densidade: z.string(),
+  dimensoes: z.string(),
+  unidade: z.string().min(1),
+  qtdeAtual: z.number(),
+  qtdeMinima: z.number(),
+  custoUnitario: z.number(),
+  custoTotal: z.number(),
+  precoVenda: z.number(),
+  ultimaEntrada: z.string().min(1),
+  status: z.enum(['Normal', 'Baixo', 'Crítico']),
+})
+export const estoqueProdutoFinalResponseSchema = z.array(estoqueProdutoFinalSchema)
+
 export const vendaEspumaSchema = z.object({
   id: z.string().min(1),
   data: z.string().min(1),

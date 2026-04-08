@@ -227,6 +227,13 @@ export type EstoqueEspuma = {
   ultimaEntrada: string; status: 'Normal' | 'Baixo' | 'Crítico'
 }
 
+export type EstoqueProdutoFinal = {
+  id: string; produto: string; tipo: TipoEspuma; densidade: string
+  dimensoes: string; unidade: string; qtdeAtual: number; qtdeMinima: number
+  custoUnitario: number; custoTotal: number; precoVenda: number
+  ultimaEntrada: string; status: 'Normal' | 'Baixo' | 'Crítico'
+}
+
 export type VendaEspuma = {
   id: string; data: string; cliente: string; produto: string; tipo: TipoEspuma
   densidade: string; qtde: number; unidade: string; precoUnitario: number; total: number

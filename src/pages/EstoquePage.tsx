@@ -1,5 +1,5 @@
 import { Card, Skeleton, Space, Tabs } from 'antd'
-import { InboxOutlined, BuildOutlined, ShoppingCartOutlined } from '@ant-design/icons'
+import { InboxOutlined, BuildOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { Suspense, lazy } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
@@ -10,15 +10,15 @@ const EstoqueMateriaPrimaTab = lazy(() =>
 const EstoqueEspumaTab = lazy(() =>
   import('./finance/EstoqueEspumaTab').then((m) => ({ default: m.EstoqueEspumaTab })),
 )
-const VendasEspumaTab = lazy(() =>
-  import('./finance/VendasEspumaTab').then((m) => ({ default: m.VendasEspumaTab })),
+const EstoqueProdutoFinalTab = lazy(() =>
+  import('./finance/EstoqueProdutoFinalTab').then((m) => ({ default: m.EstoqueProdutoFinalTab })),
 )
 
 const tabFallback = <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 24 }} />
 
 export function EstoquePage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab = searchParams.get('tab') ?? 'estoque-materia-prima'
+  const activeTab = searchParams.get('tab') ?? 'materia-prima'
 
   const handleTabChange = (key: string) => {
     setSearchParams({ tab: key }, { replace: true })
@@ -26,10 +26,10 @@ export function EstoquePage() {
 
   const tabItems = [
     {
-      key: 'estoque-materia-prima',
+      key: 'materia-prima',
       label: (
         <span>
-          <InboxOutlined /> Estoque Mat. Prima
+          <InboxOutlined /> Matéria Prima
         </span>
       ),
       children: (
@@ -39,10 +39,10 @@ export function EstoquePage() {
       ),
     },
     {
-      key: 'estoque-espuma',
+      key: 'produto-base',
       label: (
         <span>
-          <BuildOutlined /> Estoque Espuma/Aglom.
+          <BuildOutlined /> Produto Base
         </span>
       ),
       children: (
@@ -52,15 +52,15 @@ export function EstoquePage() {
       ),
     },
     {
-      key: 'vendas-espuma',
+      key: 'produto-final',
       label: (
         <span>
-          <ShoppingCartOutlined /> Vendas Espuma/Aglom.
+          <AppstoreOutlined /> Produto Final
         </span>
       ),
       children: (
         <Suspense fallback={tabFallback}>
-          <VendasEspumaTab />
+          <EstoqueProdutoFinalTab />
         </Suspense>
       ),
     },
@@ -70,7 +70,7 @@ export function EstoquePage() {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
         title="Estoque"
-        subtitle="Controle de estoque de matéria-prima, espuma, aglomerado e vendas."
+        subtitle="Posição de estoque: matéria-prima, produto base e produto final."
       />
 
       <Card className="app-card no-hover" variant="borderless" style={{ padding: 0 }}>

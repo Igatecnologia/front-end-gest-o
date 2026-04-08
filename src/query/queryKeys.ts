@@ -27,6 +27,7 @@ export const queryKeys = {
   estoqueMateriaPrima: () => ['estoqueMateriaPrima'] as const,
   estoqueEspuma: () => ['estoqueEspuma'] as const,
   vendasEspuma: () => ['vendasEspuma'] as const,
+  estoqueProdutoFinal: () => ['estoqueProdutoFinal'] as const,
 
   /* ── ERP Sprint 8 ── */
   comprasMateriaPrima: () => ['comprasMateriaPrima'] as const,

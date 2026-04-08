@@ -14,7 +14,7 @@ import {
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { ExperimentOutlined, ShoppingCartOutlined, WarningOutlined } from '@ant-design/icons'
+import { ExperimentOutlined, HistoryOutlined, ShoppingCartOutlined, WarningOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
@@ -468,6 +468,135 @@ function ComprasMateriaPrimaTab() {
 }
 
 /* ═══════════════════════════════════════════════════════
+   Tab 3 — Histórico de Produção
+   ═══════════════════════════════════════════════════════ */
+
+function HistoricoProducaoTab() {
+  const [search, setSearch] = useState('')
+  const [tipoFilter, setTipoFilter] = useState<string>('all')
+
+  const debouncedSearch = useDebouncedValue(search)
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: queryKeys.lotesProducao(),
+    queryFn: getLotesProducao,
+  })
+
+  /* Apenas lotes concluídos, ordenados do mais recente ao mais antigo */
+  const historico = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase()
+    return rows
+      .filter((r) => r.status === 'Concluído')
+      .filter((r) => {
+        const text = !q || r.id.toLowerCase().includes(q) || r.operador.toLowerCase().includes(q)
+        const tp = tipoFilter === 'all' || r.tipo === tipoFilter
+        return text && tp
+      })
+      .sort((a, b) => dayjs(b.data).valueOf() - dayjs(a.data).valueOf())
+  }, [rows, debouncedSearch, tipoFilter])
+
+  const metrics = useMemo(() => {
+    const total = historico.length
+    const volumeTotal = historico.reduce((s, r) => s + r.volumeTotalM3, 0)
+    const custoTotal = historico.reduce((s, r) => s + r.custoTotalLote, 0)
+    const custoMedioM3 = total > 0 ? historico.reduce((s, r) => s + r.custoPorM3, 0) / total : 0
+    const rendimentoMedio = total > 0 ? historico.reduce((s, r) => s + r.rendimentoPct, 0) / total : 0
+
+    /* Agrupamento por mês */
+    const byMonth = new Map<string, { lotes: number; volume: number; custo: number }>()
+    for (const r of historico) {
+      const m = dayjs(r.data).format('YYYY-MM')
+      const cur = byMonth.get(m) ?? { lotes: 0, volume: 0, custo: 0 }
+      cur.lotes++
+      cur.volume += r.volumeTotalM3
+      cur.custo += r.custoTotalLote
+      byMonth.set(m, cur)
+    }
+
+    return { total, volumeTotal, custoTotal, custoMedioM3, rendimentoMedio, byMonth }
+  }, [historico])
+
+  const columns: ColumnsType<LoteProducao> = [
+    { title: 'ID', dataIndex: 'id', key: 'id', width: 100 },
+    {
+      title: 'Data', dataIndex: 'data', key: 'data', width: 120,
+      render: (v: string) => dayjs(v).format('DD/MM/YYYY'),
+      sorter: (a, b) => dayjs(a.data).valueOf() - dayjs(b.data).valueOf(),
+      defaultSortOrder: 'descend',
+    },
+    { title: 'Tipo', dataIndex: 'tipo', key: 'tipo', width: 120, render: (v: string) => <Tag>{v}</Tag> },
+    { title: 'Densidade', dataIndex: 'densidade', key: 'densidade', width: 100 },
+    { title: 'Volume m³', dataIndex: 'volumeTotalM3', key: 'volume', width: 120, align: 'right', render: (v: number) => v.toFixed(2) },
+    { title: 'Custo Total', dataIndex: 'custoTotalLote', key: 'custoTotal', width: 140, align: 'right', render: (v: number) => formatBRL(v) },
+    { title: 'Custo/m³', dataIndex: 'custoPorM3', key: 'custoM3', width: 130, align: 'right', render: (v: number) => formatBRL(v) },
+    {
+      title: 'Rendimento', dataIndex: 'rendimentoPct', key: 'rendimento', width: 150,
+      render: (v: number) => (
+        <Progress
+          percent={Number(v.toFixed(1))}
+          size="small"
+          strokeColor={v < 92 ? '#f5222d' : v < 96 ? '#fa8c16' : '#52c41a'}
+          format={(pct) => `${pct}%`}
+        />
+      ),
+    },
+    { title: 'Operador', dataIndex: 'operador', key: 'operador', ellipsis: true },
+    { title: 'Observações', dataIndex: 'observacoes', key: 'obs', ellipsis: true },
+  ]
+
+  if (isLoading) {
+    return <Card className="app-card" variant="borderless"><Skeleton active paragraph={{ rows: 10 }} /></Card>
+  }
+
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} lg={6}>
+          <MetricCard title="Lotes Concluídos" value={String(metrics.total)} />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <MetricCard title="Volume Total" value={`${metrics.volumeTotal.toFixed(2)} m³`} />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <MetricCard title="Custo Médio/m³" value={formatBRL(metrics.custoMedioM3)} />
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <MetricCard title="Rendimento Médio" value={`${metrics.rendimentoMedio.toFixed(1)}%`} />
+        </Col>
+      </Row>
+
+      <Card className="app-card no-hover" variant="borderless" title="Filtros">
+        <div className="filter-bar">
+          <div className="filter-item">
+            <span>Busca</span>
+            <Input.Search allowClear placeholder="ID ou operador" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <div className="filter-item">
+            <span>Tipo</span>
+            <Select value={tipoFilter} style={{ width: 180 }} onChange={setTipoFilter} options={[
+              { value: 'all', label: 'Todos' },
+              { value: 'Espuma', label: 'Espuma' },
+              { value: 'Aglomerado', label: 'Aglomerado' },
+            ]} />
+          </div>
+        </div>
+      </Card>
+
+      <Card className="app-card quantum-table" variant="borderless" title="Histórico de Produção — Lotes Concluídos">
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={historico}
+          pagination={{ pageSize: 15, showSizeChanger: true }}
+          scroll={{ x: 1300 }}
+          aria-label="Tabela de histórico de produção"
+        />
+      </Card>
+    </Space>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════
    Página Principal — Produção
    ═══════════════════════════════════════════════════════ */
 
@@ -484,7 +613,7 @@ export function ProducaoPage() {
       key: 'lotes',
       label: (
         <span>
-          <ExperimentOutlined /> Lotes de Produ\u00E7\u00E3o
+          <ExperimentOutlined /> Lotes de Produção
         </span>
       ),
       children: <LotesProducaoTab />,
@@ -493,18 +622,27 @@ export function ProducaoPage() {
       key: 'compras',
       label: (
         <span>
-          <ShoppingCartOutlined /> Compras de Mat\u00E9ria-Prima
+          <ShoppingCartOutlined /> Compras de Matéria-Prima
         </span>
       ),
       children: <ComprasMateriaPrimaTab />,
+    },
+    {
+      key: 'historico',
+      label: (
+        <span>
+          <HistoryOutlined /> Histórico de Produção
+        </span>
+      ),
+      children: <HistoricoProducaoTab />,
     },
   ]
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
-        title="Produ\u00E7\u00E3o"
-        subtitle="Gerenciamento de lotes de produ\u00E7\u00E3o e compras de mat\u00E9ria-prima."
+        title="Produção"
+        subtitle="Gerenciamento de lotes de produção, compras de matéria-prima e histórico."
       />
 
       <Card className="app-card no-hover" variant="borderless" style={{ padding: 0 }}>
