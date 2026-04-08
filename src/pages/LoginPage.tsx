@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useTenant } from '../tenant/TenantContext'
 import { sanitizeAppRedirectPath } from '../utils/sanitizeAppRedirectPath'
 import { checkLoginAllowed, recordLoginAttempt, getLoginAttemptsRemaining } from '../auth/loginThrottle'
-import { hasAnySources, listDataSources } from '../services/dataSourceService'
+import { listDataSourcesFromApi } from '../services/dataSourceService'
 
 type LoginForm = {
   email: string
@@ -28,13 +28,20 @@ export function LoginPage() {
     '/dashboard',
   )
 
-  const [configured, setConfigured] = useState(hasAnySources())
+  const [configured, setConfigured] = useState<boolean | null>(null)
 
   useEffect(() => {
-    if (!configured) {
-      listDataSources().then(() => setConfigured(hasAnySources()))
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    let mounted = true
+    listDataSourcesFromApi()
+      .then((items) => {
+        if (mounted) setConfigured(items.length > 0)
+      })
+      .catch(() => {
+        // Se o backend estiver indisponivel, não marcar como "nao configurado".
+        if (mounted) setConfigured(null)
+      })
+    return () => { mounted = false }
+  }, [])
 
   if (isAuthenticated) return <Navigate to={from} replace />
 
@@ -81,7 +88,7 @@ export function LoginPage() {
           subtitle={`Acesse o painel ${tenant.companyName} com suas credenciais.`}
         />
 
-        {!configured && (
+        {configured === false && (
           <Alert
             type="warning"
             showIcon
@@ -133,7 +140,7 @@ export function LoginPage() {
             </Form.Item>
 
             <Space direction="vertical" size={8} style={{ width: '100%' }}>
-              <Button type="primary" htmlType="submit" loading={submitting} block disabled={!configured}>
+              <Button type="primary" htmlType="submit" loading={submitting} block>
                 Entrar
               </Button>
             </Space>

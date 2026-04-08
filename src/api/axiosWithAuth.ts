@@ -33,7 +33,7 @@ export function createAuthorizedAxios(baseURL: string, timeoutMs = 20_000): Axio
 
     // Tenant isolation — backend MUST validate
     const tenantId = getCurrentTenantId()
-    if (tenantId && tenantId !== 'default') {
+    if (tenantId) {
       config.headers['X-Tenant-ID'] = tenantId
     }
 
