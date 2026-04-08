@@ -47,7 +47,7 @@ type AbcRow = {
   classe: 'A' | 'B' | 'C'
 }
 
-type AgrupaPor = 'produto' | 'cliente'
+type AgrupaPor = 'produto' | 'cliente' | 'vendedor'
 
 function classificaAbc(acumuladoPct: number): 'A' | 'B' | 'C' {
   if (acumuladoPct <= 80) return 'A'
@@ -71,8 +71,8 @@ function buildAbcData(rows: VendaAnaliticaRow[], agrupaPor: AgrupaPor): AbcRow[]
     const st = r.statuspedido.trim().toUpperCase()
     if (st === 'C' || st === 'X' || st === 'CAN') continue
 
-    const codigo = agrupaPor === 'produto' ? String(r.codprod) : String(r.codcliente)
-    const nome = agrupaPor === 'produto' ? r.decprod : String(r.nomecliente)
+    const codigo = agrupaPor === 'produto' ? String(r.codprod) : agrupaPor === 'cliente' ? String(r.codcliente) : String(r.codvendedor ?? '')
+    const nome = agrupaPor === 'produto' ? r.decprod : agrupaPor === 'cliente' ? String(r.nomecliente) : (r.nomevendedor || 'Sem vendedor')
     const unidade = agrupaPor === 'produto' ? (r.und || '') : ''
 
     const existing = map.get(codigo)
@@ -195,7 +195,7 @@ export function CurvaAbcTab() {
       width: 100,
     },
     {
-      title: agrupaPor === 'produto' ? 'Produto' : 'Cliente',
+      title: agrupaPor === 'produto' ? 'Produto' : agrupaPor === 'cliente' ? 'Cliente' : 'Vendedor',
       dataIndex: 'nome',
       key: 'nome',
       ellipsis: true,
@@ -278,7 +278,7 @@ export function CurvaAbcTab() {
     return <Empty description="Nenhum dado para gerar a Curva ABC no período selecionado." />
   }
 
-  const labelItem = agrupaPor === 'produto' ? 'produtos' : 'clientes'
+  const labelItem = agrupaPor === 'produto' ? 'produtos' : agrupaPor === 'cliente' ? 'clientes' : 'vendedores'
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -294,6 +294,7 @@ export function CurvaAbcTab() {
               options={[
                 { value: 'produto', label: 'Produto' },
                 { value: 'cliente', label: 'Cliente' },
+                { value: 'vendedor', label: 'Vendedor' },
               ]}
             />
           </div>

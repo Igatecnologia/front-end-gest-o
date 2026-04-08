@@ -180,6 +180,8 @@ export const localLoginResponseSchema = z.object({
 export const vendaAnaliticaRowSchema = z
   .object({
     data: z.string(),
+    codvendedor: z.union([z.number(), z.string()]).optional(),
+    nomevendedor: z.string().optional(),
     codprod: z.union([z.number(), z.string()]),
     decprod: z.string(),
     qtdevendida: z.number(),

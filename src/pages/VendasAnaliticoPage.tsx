@@ -65,6 +65,7 @@ type PedidoAgrupado = {
   cliente: string
   codcliente: string | number
   cepcliente: string
+  vendedor: string
   data: string
   datafec: string
   status: string
@@ -132,6 +133,7 @@ function PedidosContent() {
         cliente: String(first.nomecliente),
         codcliente: first.codcliente,
         cepcliente: first.cepcliente ?? '',
+        vendedor: first.nomevendedor ?? '',
         data: first.data,
         datafec: first.datafec,
         status: first.statuspedido,
@@ -286,7 +288,7 @@ function PedidosContent() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--qc-border)', textAlign: 'left' }}>
-                  {['Data', 'Cliente', 'Produtos', 'Qtd total', 'Total R$', 'Margem', 'Status', ''].map((h, i) => (
+                  {['Data', 'Vendedor', 'Cliente', 'Produtos', 'Qtd total', 'Total R$', 'Margem', 'Status', ''].map((h, i) => (
                     <th key={h || i} className="typ-thead" style={{
                       padding: '10px 12px',
                       textAlign: ['Qtd total', 'Total R$', 'Margem'].includes(h) ? 'right' : h === 'Status' ? 'center' : 'left',
@@ -312,6 +314,11 @@ function PedidosContent() {
                           Fec: {dayjs(pedido.datafec).format('DD/MM/YY')}
                         </Typography.Text>
                       )}
+                    </td>
+                    <td style={{ padding: '10px 12px', maxWidth: 140 }}>
+                      <Typography.Text ellipsis style={{ display: 'block', fontSize: 12 }}>
+                        {pedido.vendedor || '—'}
+                      </Typography.Text>
                     </td>
                     <td style={{ padding: '10px 12px', maxWidth: 220 }}>
                       <Typography.Text ellipsis style={{ display: 'block', fontWeight: 500, fontSize: 13 }}>

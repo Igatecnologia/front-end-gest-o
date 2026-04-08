@@ -51,6 +51,7 @@ type PedidoAgrupado = {
   cliente: string
   codcliente: string | number
   cepcliente: string
+  vendedor: string
   data: string
   datafec: string
   status: string
@@ -179,7 +180,7 @@ export function VendaAnaliticoDetailDrawer({ open, pedido, onClose }: Props) {
           icon={<UserOutlined />}
           label="Cliente"
           value={pedido.cliente || '—'}
-          sub={`Código: ${pedido.codcliente}${pedido.cepcliente ? ` · CEP: ${pedido.cepcliente}` : ''}`}
+          sub={`Código: ${pedido.codcliente}${pedido.cepcliente ? ` · CEP: ${pedido.cepcliente}` : ''}${pedido.vendedor ? ` · Vendedor: ${pedido.vendedor}` : ''}`}
           accent="#8B5CF6"
         />
       </div>
