@@ -2,6 +2,9 @@ import {
   AlertOutlined,
   AppstoreOutlined,
   BarChartOutlined,
+  CloudServerOutlined,
+  CompassOutlined,
+  CustomerServiceOutlined,
   DashboardOutlined,
   DatabaseOutlined,
   DollarOutlined,
@@ -16,9 +19,9 @@ import {
   ProfileOutlined,
   ShoppingCartOutlined,
   SunOutlined,
-  TableOutlined,
   TeamOutlined,
   UserOutlined,
+  PhoneOutlined,
 } from '@ant-design/icons'
 import {
   Button,
@@ -45,6 +48,7 @@ const { Header, Sider, Content } = Layout
 
 function useSelectedMenuKey(pathname: string) {
   return useMemo(() => {
+    if (pathname.startsWith('/gestao')) return 'gestao'
     if (pathname.startsWith('/dashboard/analises')) return 'dashboard-analises'
     if (pathname.startsWith('/dashboard/vendas-analitico')) return 'dashboard-vendas-analitico'
     if (pathname.startsWith('/financeiro')) return 'financeiro'
@@ -57,7 +61,10 @@ function useSelectedMenuKey(pathname: string) {
     if (pathname.startsWith('/estoque')) return 'estoque'
     if (pathname.startsWith('/operacional')) return 'operacional'
     if (pathname.startsWith('/alertas')) return 'alertas'
+    if (pathname.startsWith('/suporte/fale-conosco')) return 'suporte-fale-conosco'
     if (pathname.startsWith('/fontes-de-dados')) return 'fontes-de-dados'
+    if (pathname.startsWith('/admin/operacao')) return 'admin-operacao'
+    if (pathname.startsWith('/suporte')) return 'suporte'
     return 'dashboard'
   }, [pathname])
 }
@@ -65,10 +72,15 @@ function useSelectedMenuKey(pathname: string) {
 /** Detecta qual grupo do sidebar deve estar aberto baseado na rota */
 function useOpenSubMenuKeys(selectedKey: string) {
   return useMemo(() => {
-    if (selectedKey.startsWith('dashboard') || selectedKey === 'operacional' || selectedKey === 'alertas') return ['sub-dashboard']
+    if (selectedKey === 'gestao' || selectedKey.startsWith('dashboard') || selectedKey === 'operacional' || selectedKey === 'alertas') return ['sub-dashboard']
     if (selectedKey === 'producao' || selectedKey === 'ficha-tecnica' || selectedKey === 'comercial' || selectedKey === 'estoque') return ['sub-erp']
     if (selectedKey === 'financeiro' || selectedKey === 'relatorios') return ['sub-analytics']
-    if (['usuarios', 'auditoria', 'fontes-de-dados'].includes(selectedKey)) return ['sub-admin']
+    if (['usuarios', 'auditoria'].includes(selectedKey)) return ['sub-admin']
+    if (
+      ['suporte', 'suporte-fale-conosco', 'fontes-de-dados', 'admin-operacao'].includes(selectedKey)
+    ) {
+      return ['sub-suporte']
+    }
     return ['sub-dashboard']
   }, [selectedKey])
 }
@@ -97,6 +109,7 @@ export function AppLayout() {
         icon: <BarChartOutlined />,
         label: 'Dashboard',
         children: [
+          { key: 'gestao', icon: <CompassOutlined />, label: <Link to="/gestao">Visão do gestor</Link> },
           { key: 'dashboard', icon: <HomeOutlined />, label: <Link to="/dashboard">Visão geral</Link> },
           { key: 'dashboard-analises', icon: <DotChartOutlined />, label: <Link to="/dashboard/analises">Análises BI</Link> },
           { key: 'dashboard-vendas-analitico', icon: <ShoppingCartOutlined />, label: <Link to="/dashboard/vendas-analitico">Vendas</Link> },
@@ -149,15 +162,49 @@ export function AppLayout() {
     if (hasPermission(session, 'audit:view')) {
       adminChildren.push({ key: 'auditoria', icon: <FileSearchOutlined />, label: <Link to="/auditoria">Auditoria</Link> })
     }
-    if (session?.user.role === 'admin') {
-      adminChildren.push({ key: 'fontes-de-dados', icon: <DatabaseOutlined />, label: <Link to="/fontes-de-dados">Fontes de Dados</Link> })
-    }
     if (adminChildren.length) {
       items.push({
         key: 'sub-admin',
         icon: <TeamOutlined />,
         label: 'Administração',
         children: adminChildren,
+      })
+    }
+
+    {
+      const suporteChildren: NonNullable<React.ComponentProps<typeof Menu>['items']> = [
+        {
+          key: 'suporte-fale-conosco',
+          icon: <PhoneOutlined />,
+          label: <Link to="/suporte/fale-conosco">Fale conosco</Link>,
+        },
+      ]
+      if (hasPermission(session, 'support:view')) {
+        suporteChildren.push({
+          key: 'suporte',
+          icon: <CustomerServiceOutlined />,
+          label: <Link to="/suporte">Área técnica</Link>,
+        })
+      }
+      if (hasPermission(session, 'datasources:view')) {
+        suporteChildren.push({
+          key: 'fontes-de-dados',
+          icon: <DatabaseOutlined />,
+          label: <Link to="/fontes-de-dados">Fontes de dados</Link>,
+        })
+      }
+      if (hasPermission(session, 'operations:view')) {
+        suporteChildren.push({
+          key: 'admin-operacao',
+          icon: <CloudServerOutlined />,
+          label: <Link to="/admin/operacao">Operação</Link>,
+        })
+      }
+      items.push({
+        key: 'sub-suporte',
+        icon: <CustomerServiceOutlined />,
+        label: 'Suporte técnico',
+        children: suporteChildren,
       })
     }
 
@@ -208,6 +255,7 @@ export function AppLayout() {
       </a>
       {!screens.xs ? (
         <Sider
+          className="app-sider-premium"
           breakpoint="lg"
           collapsedWidth={72}
           collapsed={collapsed}
@@ -216,17 +264,19 @@ export function AppLayout() {
             position: 'sticky',
             top: 0,
             height: '100vh',
-            overflow: 'auto',
-            borderRight: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
-          <div className="app-sider-brand">
+          <div className="app-sider-premium__sheen" aria-hidden />
+          <div className="app-sider-premium__edge" aria-hidden />
+          <div className="app-sider-brand app-sider-brand--premium">
             <Space size={10} align="center">
-              <img
-                src={tenant.logoUrl}
-                alt={tenant.companyName}
-                className="app-sider-logo"
-              />
+              {tenant.logoUrl ? (
+                <img
+                  src={tenant.logoUrl}
+                  alt={tenant.companyName}
+                  className="app-sider-logo"
+                />
+              ) : null}
               {!collapsed && (
                 <div style={{ lineHeight: 1.1 }}>
                   <span className="app-sider-brand-name" style={{ color: token.colorText }}>
@@ -249,35 +299,41 @@ export function AppLayout() {
             </Space>
           </div>
 
-          <Menu
-            className="app-sider-menu"
-            theme={mode === 'dark' ? 'dark' : 'light'}
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            defaultOpenKeys={collapsed ? [] : defaultOpenKeys}
-            items={navItems}
-            style={{ background: 'transparent', borderInlineEnd: 0 }}
-          />
+          <div className="app-sider-nav">
+            <Menu
+              className="app-sider-menu"
+              popupClassName="app-sider-menu-popup"
+              theme={mode === 'dark' ? 'dark' : 'light'}
+              mode="inline"
+              selectedKeys={[selectedKey]}
+              defaultOpenKeys={collapsed ? [] : defaultOpenKeys}
+              items={navItems}
+              style={{ background: 'transparent', borderInlineEnd: 0 }}
+            />
+          </div>
         </Sider>
       ) : (
         <Drawer
           open={mobileNavOpen}
           onClose={() => setMobileNavOpen(false)}
           placement="left"
-          width={280}
-          bodyStyle={{ padding: 0 }}
+          width={300}
+          styles={{ body: { padding: 0 } }}
           title="Menu"
         >
-          <Menu
-            className="app-sider-menu"
-            theme={mode === 'dark' ? 'dark' : 'light'}
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            defaultOpenKeys={defaultOpenKeys}
-            items={navItems}
-            onClick={() => setMobileNavOpen(false)}
-            style={{ borderInlineEnd: 0 }}
-          />
+          <div className="app-sider-nav app-sider-nav--drawer">
+            <Menu
+              className="app-sider-menu"
+              popupClassName="app-sider-menu-popup"
+              theme={mode === 'dark' ? 'dark' : 'light'}
+              mode="inline"
+              selectedKeys={[selectedKey]}
+              defaultOpenKeys={defaultOpenKeys}
+              items={navItems}
+              onClick={() => setMobileNavOpen(false)}
+              style={{ borderInlineEnd: 0 }}
+            />
+          </div>
         </Drawer>
       )}
 
@@ -306,6 +362,8 @@ export function AppLayout() {
             <Space align="center" size={10}>
               <Typography.Title level={5} style={{ margin: 0 }}>
                 {{
+                  gestao: 'Visão do gestor',
+                  dashboard: 'Dashboard',
                   relatorios: 'Relatórios',
                   financeiro: 'Financeiro',
                   usuarios: 'Funcionários',
@@ -318,7 +376,10 @@ export function AppLayout() {
                   estoque: 'Estoque',
                   operacional: 'Dashboard Operacional',
                   alertas: 'Alertas',
-                  'fontes-de-dados': 'Conexoes',
+                  'fontes-de-dados': 'Fontes de dados',
+                  'admin-operacao': 'Operação',
+                  suporte: 'Área técnica',
+                  'suporte-fale-conosco': 'Fale conosco',
                 }[selectedKey] ?? 'Dashboard'}
               </Typography.Title>
               {envBadge ? (

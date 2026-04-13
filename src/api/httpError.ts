@@ -33,7 +33,7 @@ export function getErrorMessage(error: unknown, fallback: string): string {
     }
     if (data?.message?.trim()) return data.message.trim()
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-      return 'Sem resposta do servidor (rede ou CORS). Em desenvolvimento, tente VITE_SGBR_BI_BASE_URL=proxy no .env.'
+      return 'Sem resposta do servidor (rede ou CORS). Verifique se o backend está online e se a fonte está configurada nas telas de Data Source.'
     }
     return getHttpStatusMessage(status)
   }

@@ -27,12 +27,11 @@ Até lá, reduzir superfície XSS (CSP, sem `dangerouslySetInnerHTML`, dependên
 - Revisar integrações de terceiros (scripts, iframes) antes de alargar `script-src` / `frame-src`.
 - Opcional: restringir `connect-src` a hosts concretos da API em produção (hoje permite `https:` em geral por flexibilidade do SGBR).
 
-## Dependência `xlsx` (dívida conhecida)
+## Exportação de Excel
 
-O pacote `xlsx` (SheetJS no registo público npm) está referenciado em advisories (p.ex. prototype pollution / ReDoS em versões antigas; a árvore atual pode ainda não ter `fixAvailable` no `npm audit`).
-
-- **Uso no projeto:** geração de ficheiros para export (`ReportsPage`), não leitura de Excel arbitrário do utilizador.
-- **Ação:** manter `npm audit` no CI; quando existir versão corrigida ou migração estável (p.ex. `exceljs`), planear atualização ou substituição.
+- **Estado atual:** exportação `.xlsx` no frontend usa `exceljs` (sem advisories ativos no `npm audit` atual).
+- **Contexto de risco:** continuamos a gerar ficheiros localmente no browser; não existe parser de Excel enviado por utilizador neste fluxo.
+- **Ação contínua:** manter `npm audit` no CI e monitorizar advisories de dependências de exportação.
 
 ## Redirecionamento pós-login
 

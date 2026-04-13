@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { DatePresetRange } from '../components/DatePresetRange'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { hasAnySources } from '../services/dataSourceService'
+import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import type { DashboardData } from '../types/models'
@@ -31,11 +31,13 @@ export function DashboardDataPage() {
   const groupBy = (searchParams.get('g') ?? 'none') as 'none' | 'status' | 'month'
   const start = searchParams.get('start') ?? ''
   const end = searchParams.get('end') ?? ''
+  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
+  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
   const [statusFilter, setStatusFilter] = useState<'all' | LatestRow['status']>('all')
 
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.dashboard({ period }),
-    queryFn: () => getDashboardData({ delayMs: 700, period }),
+    queryKey: queryKeys.dashboard({ period, sourceId }),
+    queryFn: () => getDashboardData({ period }),
     staleTime: hasAnySources() ? ANALITICO_STALE_MS : undefined,
   })
 
@@ -89,6 +91,7 @@ export function DashboardDataPage() {
             ? 'Resumo de linhas de venda (últimos lançamentos) derivado da API SGBR. Detalhe linha a linha: Vendas analítico.'
             : 'Tabela operacional com ordenação, filtros e totais consolidados.'
         }
+        extra={<Tag color="blue">{sourceLabel}</Tag>}
       />
 
       <Card className="app-card" variant="borderless">

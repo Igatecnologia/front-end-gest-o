@@ -29,6 +29,10 @@ function trendFromSeries(values: number[], take = 8): number[] {
   return slice.length ? slice : [0]
 }
 
+function resolveVendaDate(row: VendaAnaliticaRow) {
+  return parseVendaDate(row.datafec || row.data)
+}
+
 /** Monta o objeto de dashboard consumido pelas páginas a partir das linhas da API SGBR. */
 export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): DashboardData {
   const faturamento = rows.reduce((s, r) => s + r.total, 0)
@@ -40,7 +44,7 @@ export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): Dashboa
   const heatmap = new Map<string, number>()
 
   for (const r of rows) {
-    const d = parseVendaDate(r.data)
+    const d = resolveVendaDate(r)
     const dayStart = d.startOf('day').valueOf()
     const mKey = `${d.year()}-${String(d.month() + 1).padStart(2, '0')}`
     const wd = WEEKDAYS[d.day()] ?? 'Seg'
@@ -80,17 +84,17 @@ export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): Dashboa
   }
 
   const latestSorted = [...rows].sort(
-    (a, b) => parseVendaDate(b.data).valueOf() - parseVendaDate(a.data).valueOf(),
+    (a, b) => resolveVendaDate(b).valueOf() - resolveVendaDate(a).valueOf(),
   )
   const latest: DashboardData['latest'] = latestSorted.map((r, i) => {
     const total = Math.round(r.total * 100) / 100
     const custo = Math.round(r.precocustoitem * r.qtdevendida * 100) / 100
     return {
-      id: `vd-${String(r.codcliente)}-${String(r.codprod)}-${i}-${parseVendaDate(r.data).valueOf()}`,
+      id: `vd-${String(r.codcliente)}-${String(r.codprod)}-${i}-${resolveVendaDate(r).valueOf()}`,
       cliente: String(r.nomecliente),
       total,
       status: mapPedidoStatus(String(r.statuspedido)),
-      data: parseVendaDate(r.data).format('YYYY-MM-DD'),
+      data: resolveVendaDate(r).format('YYYY-MM-DD'),
       produto: String(r.decprod),
       codprod: r.codprod,
       codcliente: r.codcliente,
@@ -154,7 +158,7 @@ export function buildFinanceFromVendasRows(rows: VendaAnaliticaRow[]): FinanceOv
 
   const byMonthY = new Map<string, { receita: number; custos: number }>()
   for (const r of rows) {
-    const d = parseVendaDate(r.data)
+    const d = resolveVendaDate(r)
     const mKey = `${d.year()}-${String(d.month() + 1).padStart(2, '0')}`
     const cur = byMonthY.get(mKey) ?? { receita: 0, custos: 0 }
     cur.receita += r.total
@@ -177,11 +181,10 @@ export function buildFinanceFromVendasRows(rows: VendaAnaliticaRow[]): FinanceOv
     })
 
   const entries: FinanceOverview['entries'] = [...rows]
-    .sort((a, b) => parseVendaDate(b.data).valueOf() - parseVendaDate(a.data).valueOf())
-    .slice(0, 40)
+    .sort((a, b) => resolveVendaDate(b).valueOf() - resolveVendaDate(a).valueOf())
     .map((r, i) => ({
-      id: `fin-${i}-${r.codprod}-${parseVendaDate(r.data).valueOf()}`,
-      date: parseVendaDate(r.data).format('YYYY-MM-DD'),
+      id: `fin-${i}-${r.codprod}-${resolveVendaDate(r).valueOf()}`,
+      date: resolveVendaDate(r).format('YYYY-MM-DD'),
       category: 'Receita' as const,
       description: `${r.decprod.slice(0, 48)}${r.decprod.length > 48 ? '…' : ''}`,
       amount: Math.round(r.total * 100) / 100,
@@ -230,7 +233,7 @@ export function buildReportItemsFromVendasRows(rows: VendaAnaliticaRow[]): Repor
     cc.count++
     byCli.set(ck, cc)
 
-    const d = parseVendaDate(r.data)
+    const d = resolveVendaDate(r)
     const mk = `${d.year()}-${String(d.month() + 1).padStart(2, '0')}`
     const mc = byMonth.get(mk) ?? { total: 0, count: 0 }
     mc.total += r.total

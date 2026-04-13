@@ -7,7 +7,6 @@ import {
   PercentageOutlined,
   ShoppingCartOutlined,
   TeamOutlined,
-  InboxOutlined,
 } from '@ant-design/icons'
 import {
   Alert,
@@ -29,26 +28,67 @@ import dayjs from 'dayjs'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Tooltip, XAxis, YAxis } from 'recharts'
+import { Bar, CartesianGrid, ComposedChart, Legend, Line, Tooltip, XAxis, YAxis } from 'recharts'
 import { gridProps, xAxisProps, yAxisProps, CHART_COLORS } from '../components/charts/ChartDefaults'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
 import { ChartShell } from '../components/ChartShell'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { hasAnySources } from '../services/dataSourceService'
+import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { useAuth } from '../auth/AuthContext'
 import { hasPermission } from '../auth/permissions'
 import { getErrorMessage } from '../api/httpError'
 import { DevErrorDetail } from '../components/DevErrorDetail'
-import type { VendaAnaliticaRow } from '../api/schemas'
 import { queryKeys } from '../query/queryKeys'
 import { getVendasAnalitico } from '../services/vendasAnaliticoService'
 import { nowBr, parseVendaDate } from '../utils/dayjsBr'
 import { formatBRL, formatCompact } from '../utils/formatters'
+import { useTenant } from '../tenant/TenantContext'
 
 const PT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+function sanitizeCsvCell(value: unknown): string {
+  const raw = String(value ?? '')
+  const escaped = raw.replace(/"/g, '""')
+  return /^[=+\-@]/.test(escaped) ? `'${escaped}'` : escaped
+}
+
+function downloadCsv(headers: string[], rows: Array<Array<unknown>>, fileName: string) {
+  const csvRows = [
+    headers.map((h) => `"${sanitizeCsvCell(h)}"`).join(';'),
+    ...rows.map((row) => row.map((cell) => `"${sanitizeCsvCell(cell)}"`).join(';')),
+  ]
+  const csv = `\uFEFF${csvRows.join('\n')}`
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+async function toDataUrl(url: string): Promise<string | null> {
+  if (!url) return null
+  if (url.startsWith('data:image/')) return url
+  try {
+    const response = await fetch(url, { mode: 'cors' })
+    if (!response.ok) return null
+    const blob = await response.blob()
+    return await new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+function getImageFormatFromDataUrl(dataUrl: string): 'PNG' | 'JPEG' {
+  const mime = dataUrl.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,/)?.[1]?.toLowerCase()
+  if (mime === 'image/jpeg' || mime === 'image/jpg') return 'JPEG'
+  return 'PNG'
+}
 
 function defaultRange() {
   const end = nowBr()
@@ -79,6 +119,7 @@ function DarkTooltip({ active, payload, label, isCurrency = true }: {
 
 export function ReportsPage() {
   const { session } = useAuth()
+  const tenant = useTenant()
   const canExport = hasPermission(session, 'reports:export')
   const [searchParams, setSearchParams] = useSearchParams()
   const chartRef = useRef<HTMLDivElement | null>(null)
@@ -90,9 +131,11 @@ export function ReportsPage() {
   const view = searchParams.get('view') ?? 'geral'
 
   const biConfigured = hasAnySources()
+  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
+  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
 
   const query = useQuery({
-    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end }),
+    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end, sourceId }),
     queryFn: () => getVendasAnalitico({ dtDe: start, dtAte: end }),
     enabled: biConfigured,
     staleTime: ANALITICO_STALE_MS,
@@ -182,9 +225,6 @@ export function ReportsPage() {
 
   function exportExcel() {
     if (!report) return
-    const wb = XLSX.utils.book_new()
-
-    // Aba resumo
     const resumo = [
       { Indicador: 'Faturamento', Valor: report.totalFaturamento },
       { Indicador: 'Custo total', Valor: report.totalCusto },
@@ -195,96 +235,133 @@ export function ReportsPage() {
       { Indicador: 'Produtos únicos', Valor: report.produtosUnicos },
       { Indicador: 'Linhas de venda', Valor: report.linhas },
     ]
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumo), 'Resumo')
-
-    // Aba produtos
-    const prods = report.topProdutos.map(p => ({
-      Produto: p.nome, Faturamento: p.total, Quantidade: p.qtd, Custo: p.custo, 'Margem %': Math.round(p.margem * 10) / 10,
-    }))
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(prods), 'Top Produtos')
-
-    // Aba clientes
-    const clis = report.topClientes.map(c => ({
-      Cliente: c.nome, Faturamento: c.total, Pedidos: c.count, Custo: c.custo, 'Margem %': Math.round(c.margem * 10) / 10,
-    }))
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(clis), 'Top Clientes')
-
-    // Aba mensal
-    const mens = report.monthly.map(m => ({
-      Mês: m.month, Receita: m.receita, Custo: m.custo, Lucro: m.lucro, 'Margem %': Math.round(m.margem * 10) / 10, Pedidos: m.pedidos,
-    }))
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mens), 'Mensal')
-
-    XLSX.writeFile(wb, `${basename}.xlsx`)
+    const csvRows: Array<Array<unknown>> = [
+      ['RESUMO'],
+      ['Indicador', 'Valor'],
+      ...resumo.map((item) => [item.Indicador, item.Valor]),
+      [],
+      ['TOP PRODUTOS'],
+      ['Produto', 'Faturamento', 'Quantidade', 'Custo', 'Margem %'],
+      ...report.topProdutos.map((p) => [p.nome, p.total, p.qtd, p.custo, Math.round(p.margem * 10) / 10]),
+      [],
+      ['TOP CLIENTES'],
+      ['Cliente', 'Faturamento', 'Pedidos', 'Custo', 'Margem %'],
+      ...report.topClientes.map((c) => [c.nome, c.total, c.count, c.custo, Math.round(c.margem * 10) / 10]),
+      [],
+      ['MENSAL'],
+      ['Mês', 'Receita', 'Custo', 'Lucro', 'Margem %', 'Pedidos'],
+      ...report.monthly.map((m) => [m.month, m.receita, m.custo, m.lucro, Math.round(m.margem * 10) / 10, m.pedidos]),
+    ]
+    downloadCsv(['Relatório de Vendas'], csvRows, `${basename}.csv`)
   }
 
   function exportPdf() {
     if (!report) return
-    const doc = new jsPDF({ orientation: 'landscape' })
-    const pageW = doc.internal.pageSize.getWidth()
+    void (async () => {
+      const [{ jsPDF }, autoTableModule] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ])
+      const autoTable = autoTableModule.default
+      const doc = new jsPDF({ orientation: 'landscape' })
+      const pageW = doc.internal.pageSize.getWidth()
+      const logoDataUrl = await toDataUrl(tenant.logoUrl)
 
-    // Header
-    doc.setFillColor(15, 23, 42)
-    doc.rect(0, 0, pageW, 28, 'F')
-    doc.setTextColor(248, 250, 252)
-    doc.setFontSize(18)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Relatorio de Vendas', 14, 14)
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`${dayjs(start).format('DD/MM/YYYY')} a ${dayjs(end).format('DD/MM/YYYY')}`, 14, 22)
-    doc.text(`Gerado em ${dayjs().format('DD/MM/YYYY [as] HH:mm')}`, pageW - 14, 22, { align: 'right' })
+      // Header
+      doc.setFillColor(10, 18, 32)
+      doc.rect(0, 0, pageW, 36, 'F')
+      doc.setFillColor(26, 122, 181)
+      doc.rect(0, 33, pageW, 3, 'F')
 
-    // KPIs
-    const kpiY = 36
-    const kpiW = (pageW - 28 - 30) / 4
-    const kpis = [
-      { label: 'FATURAMENTO', value: formatBRL(report.totalFaturamento) },
-      { label: 'MARGEM BRUTA', value: `${report.margem.toFixed(1)}%` },
-      { label: 'TICKET MEDIO', value: formatBRL(report.ticketMedio) },
-      { label: 'CLIENTES', value: String(report.clientesUnicos) },
-    ]
-    doc.setTextColor(15, 23, 42)
-    kpis.forEach((kpi, i) => {
-      const x = 14 + i * (kpiW + 10)
-      doc.setFillColor(241, 245, 249)
-      doc.roundedRect(x, kpiY - 4, kpiW, 16, 3, 3, 'F')
-      doc.setFontSize(7)
-      doc.setTextColor(100, 116, 139)
-      doc.text(kpi.label, x + 6, kpiY + 2)
-      doc.setFontSize(11)
-      doc.setTextColor(15, 23, 42)
+      const logoX = 14
+      const logoY = 7
+      const logoSize = 16
+      let companyNameX = 14
+      let logoDrawn = false
+      if (logoDataUrl) {
+        try {
+          const format = getImageFormatFromDataUrl(logoDataUrl)
+          doc.addImage(logoDataUrl, format, logoX, logoY, logoSize, logoSize)
+          logoDrawn = true
+          companyNameX = 34
+        } catch {
+          logoDrawn = false
+        }
+      }
+      if (!logoDrawn && tenant.logoUrl) {
+        doc.setFillColor(26, 122, 181)
+        doc.roundedRect(logoX, logoY, logoSize, logoSize, 3, 3, 'F')
+        doc.setTextColor(248, 250, 252)
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'bold')
+        const initials = (tenant.companyName || 'IGA').slice(0, 3).toUpperCase()
+        doc.text(initials, logoX + logoSize / 2, logoY + 10, { align: 'center' })
+        companyNameX = 34
+      }
+      doc.setTextColor(248, 250, 252)
+      doc.setFontSize(14)
       doc.setFont('helvetica', 'bold')
-      doc.text(kpi.value, x + 6, kpiY + 9)
+      doc.text(tenant.companyName || 'IGA Gestão', companyNameX, 13)
+      doc.setFontSize(17)
+      doc.text('Relatório Executivo de Vendas', 14, 24)
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
-    })
+      doc.text(`${dayjs(start).format('DD/MM/YYYY')} a ${dayjs(end).format('DD/MM/YYYY')}`, 14, 30)
+      doc.text(`Gerado em ${dayjs().format('DD/MM/YYYY [às] HH:mm')}`, pageW - 14, 30, { align: 'right' })
 
-    // Top Produtos
-    doc.setDrawColor(226, 232, 240)
-    doc.line(14, kpiY + 16, pageW - 14, kpiY + 16)
-    autoTable(doc, {
-      startY: kpiY + 20,
-      head: [['Produto', 'Faturamento', 'Qtd', 'Custo', 'Margem']],
-      body: report.topProdutos.map(p => [
-        p.nome.slice(0, 50), formatBRL(p.total), p.qtd.toLocaleString('pt-BR'), formatBRL(p.custo), `${p.margem.toFixed(1)}%`,
-      ]),
-      styles: { fontSize: 8, cellPadding: 4 },
-      headStyles: { fillColor: [30, 41, 59], textColor: [248, 250, 252], fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-    })
+      // KPIs
+      const kpiY = 42
+      const kpiW = (pageW - 28 - 30) / 4
+      const kpis = [
+        { label: 'FATURAMENTO', value: formatBRL(report.totalFaturamento) },
+        { label: 'MARGEM BRUTA', value: `${report.margem.toFixed(1)}%` },
+        { label: 'TICKET MÉDIO', value: formatBRL(report.ticketMedio) },
+        { label: 'CLIENTES', value: String(report.clientesUnicos) },
+      ]
+      doc.setTextColor(15, 23, 42)
+      kpis.forEach((kpi, i) => {
+        const x = 14 + i * (kpiW + 10)
+        doc.setFillColor(241, 245, 249)
+        doc.roundedRect(x, kpiY - 4, kpiW, 16, 3, 3, 'F')
+        doc.setFontSize(7)
+        doc.setTextColor(100, 116, 139)
+        doc.text(kpi.label, x + 6, kpiY + 2)
+        doc.setFontSize(11)
+        doc.setTextColor(15, 23, 42)
+        doc.setFont('helvetica', 'bold')
+        doc.text(kpi.value, x + 6, kpiY + 9)
+        doc.setFont('helvetica', 'normal')
+      })
 
-    // Rodapé
-    const pageCount = doc.getNumberOfPages()
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-      const pageH = doc.internal.pageSize.getHeight()
-      doc.setFontSize(7)
-      doc.setTextColor(148, 163, 184)
-      doc.text('IGA Gestao — Documento confidencial', 14, pageH - 6)
-      doc.text(`Pagina ${i} de ${pageCount}`, pageW - 14, pageH - 6, { align: 'right' })
-    }
+      // Top Produtos
+      doc.setDrawColor(226, 232, 240)
+      doc.line(14, kpiY + 16, pageW - 14, kpiY + 16)
+      autoTable(doc, {
+        startY: kpiY + 20,
+        head: [['Produto', 'Faturamento', 'Qtd', 'Custo', 'Margem']],
+        body: report.topProdutos.map(p => [
+          p.nome.slice(0, 50), formatBRL(p.total), p.qtd.toLocaleString('pt-BR'), formatBRL(p.custo), `${p.margem.toFixed(1)}%`,
+        ]),
+        styles: { fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [248, 250, 252], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      })
 
-    doc.save(`${basename}.pdf`)
+      // Rodapé
+      const pageCount = doc.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i)
+        const pageH = doc.internal.pageSize.getHeight()
+        doc.setDrawColor(226, 232, 240)
+        doc.line(14, pageH - 9, pageW - 14, pageH - 9)
+        doc.setFontSize(7)
+        doc.setTextColor(148, 163, 184)
+        doc.text(`${tenant.companyName || 'IGA Gestão'} — Documento confidencial`, 14, pageH - 6)
+        doc.text(`Página ${i} de ${pageCount}`, pageW - 14, pageH - 6, { align: 'right' })
+      }
+
+      doc.save(`${basename}.pdf`)
+    })()
   }
 
   // ── Render ──
@@ -333,6 +410,7 @@ export function ReportsPage() {
         subtitle="Consolidação de vendas, produtos e clientes com exportação em Excel e PDF."
         extra={
           <Space>
+            <Tag color="blue" style={{ marginInlineEnd: 4 }}>{sourceLabel}</Tag>
             <Button icon={<ReloadOutlined />} onClick={() => query.refetch()}>Atualizar</Button>
             <Dropdown disabled={!canExport} menu={{ items: [
               { key: 'xlsx', icon: <FileExcelOutlined />, label: 'Exportar Excel', onClick: exportExcel },

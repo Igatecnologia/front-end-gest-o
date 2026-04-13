@@ -112,6 +112,7 @@ export const userSchema = z.object({
   email: z.string().email(),
   role: userRoleSchema,
   status: userStatusSchema,
+  permissions: z.array(z.string()).nullable().optional(),
   createdAt: z.string().min(1),
   updatedAt: z.string().optional(),
 }).passthrough()
@@ -124,7 +125,14 @@ export const userCreateInputSchema = z.object({
   role: userRoleSchema,
   status: userStatusSchema,
   password: z.string().min(1),
+  permissions: z.array(z.string()).min(1).optional(),
 })
+
+export const userUpdateInputSchema = userCreateInputSchema
+  .partial()
+  .extend({
+    permissions: z.union([z.array(z.string()).min(1), z.null()]).optional(),
+  })
 
 export const auditActionSchema = z.enum([
   'login',
@@ -174,6 +182,7 @@ export const localLoginResponseSchema = z.object({
     email: z.string(),
     role: z.enum(['admin', 'manager', 'viewer']),
   }),
+  permissions: z.array(z.string()).optional(),
 })
 
 /** Item de `GET /sgbrbi/vendas/analitico` */
@@ -401,12 +410,15 @@ export const ordemProducaoSchema = z.object({
 })
 export const ordensProducaoResponseSchema = z.array(ordemProducaoSchema)
 
+export const tipoDocumentoFiscalSchema = z.enum(['NF-e', 'NFS-e', 'NFC-e', 'CT-e', 'Outro'])
+
 export const faturamentoSchema = z.object({
   id: z.string().min(1),
   data: z.string().min(1),
   pedidoId: z.string(),
   cliente: z.string().min(1),
   numeroNF: z.string(),
+  tipoDocumento: tipoDocumentoFiscalSchema.default('NF-e'),
   valorProdutos: z.number(),
   valorFrete: z.number(),
   valorImpostos: z.number(),

@@ -1,6 +1,7 @@
 import { getValidated } from '../api/validatedHttp'
 import { vendasAnaliticoResponseSchema } from '../api/schemas'
 import { http } from './http'
+import { getDataSourceByEndpointHint } from './dataSourceService'
 
 /** Converte `YYYY-MM-DD` para `YYYY.MM.DD` */
 export function toSgbrBiDateParam(isoDay: string): string {
@@ -12,10 +13,13 @@ export function toSgbrBiDateParam(isoDay: string): string {
  * O backend le a config da fonte e chama a API do cliente.
  */
 export async function getVendasAnalitico(params: { dtDe: string; dtAte: string }) {
+  const vendasSource = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')
   return getValidated(http, '/api/proxy/data', vendasAnaliticoResponseSchema, {
     params: {
       dt_de: toSgbrBiDateParam(params.dtDe),
       dt_ate: toSgbrBiDateParam(params.dtAte),
+      requireDsId: '1',
+      ...(vendasSource?.id ? { dsId: vendasSource.id } : {}),
     },
   })
 }

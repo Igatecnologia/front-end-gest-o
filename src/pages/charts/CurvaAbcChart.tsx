@@ -18,12 +18,6 @@ export type CurvaAbcChartItem = {
   classe: 'A' | 'B' | 'C'
 }
 
-const classeColor: Record<string, string> = {
-  A: '#10B981',
-  B: '#F59E0B',
-  C: '#F43F5E',
-}
-
 export function CurvaAbcChart({ data }: { data: CurvaAbcChartItem[] }) {
   /* Limita a 40 itens no gráfico para legibilidade */
   const visible = data.slice(0, 40)
@@ -56,9 +50,10 @@ export function CurvaAbcChart({ data }: { data: CurvaAbcChartItem[] }) {
             tick={{ fontSize: 11 }}
           />
           <Tooltip
-            formatter={(value: number, name: string) => {
-              if (name === 'Faturamento') return formatBRL(value)
-              return `${value.toFixed(1)}%`
+            formatter={(value, name) => {
+              const numeric = typeof value === 'number' ? value : 0
+              if (name === 'Faturamento') return formatBRL(numeric)
+              return `${numeric.toFixed(1)}%`
             }}
             labelStyle={{ fontWeight: 600 }}
           />
@@ -70,23 +65,7 @@ export function CurvaAbcChart({ data }: { data: CurvaAbcChartItem[] }) {
             name="Faturamento"
             radius={[3, 3, 0, 0]}
             fill="#3B82F6"
-            shape={(props: Record<string, unknown>) => {
-              const { x, y, width, height, payload } = props as {
-                x: number; y: number; width: number; height: number
-                payload: CurvaAbcChartItem
-              }
-              return (
-                <rect
-                  x={x}
-                  y={y}
-                  width={width}
-                  height={height}
-                  rx={3}
-                  fill={classeColor[payload.classe]}
-                  opacity={0.8}
-                />
-              )
-            }}
+            fillOpacity={0.8}
           />
           <Line
             yAxisId="right"

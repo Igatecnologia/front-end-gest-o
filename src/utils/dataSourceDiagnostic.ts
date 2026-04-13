@@ -8,7 +8,23 @@ const AREA_KEYWORDS: Record<string, string[]> = {
   'fichas-tecnicas': ['ficha', 'spec', 'produto', 'product', 'margem', 'margin', 'preco_sugerido', 'suggested_price', 'peso_kg', 'consumo_kg'],
   'pedidos': ['cliente', 'client', 'customer', 'pedido', 'order', 'peca', 'piece', 'pagamento', 'payment', 'forma_pagamento'],
   'ordens-producao': ['ordem', 'work_order', 'op_', 'producao', 'production', 'data_prevista', 'planned_date', 'data_conclusao'],
-  'faturamentos': ['fatura', 'invoice', 'nf', 'nota_fiscal', 'frete', 'freight', 'imposto', 'tax', 'numero_nf'],
+  'faturamentos': [
+    'fatura',
+    'invoice',
+    'nf',
+    'nfe',
+    'nfse',
+    'nfce',
+    'cte',
+    'tipo_documento',
+    'tipoDocumento',
+    'nota_fiscal',
+    'frete',
+    'freight',
+    'imposto',
+    'tax',
+    'numero_nf',
+  ],
   'movimentos-estoque': ['estoque', 'stock', 'inventory', 'movimento', 'movement', 'entrada', 'saida', 'saldo', 'balance', 'nivel_estoque'],
   'custo-real': ['custo_real', 'real_cost', 'margem_real', 'actual_margin', 'preco_venda', 'sale_price', 'alerta_margem'],
   'alertas': ['alerta', 'alert', 'severidade', 'severity', 'titulo', 'title', 'descricao', 'description', 'lido', 'read'],
@@ -56,6 +72,11 @@ export type DiagnosticResult = {
 function detectFieldRole(fieldName: string, fieldType: string | undefined): string | null {
   const f = fieldName.toLowerCase()
   const t = fieldType ?? 'string'
+
+  // Endereço/localização
+  if (f.includes('cep') || f.includes('zipcode') || f.includes('postal') || f.includes('endereco') || f.includes('address') || f.includes('bairro') || f.includes('cidade') || f.includes('uf') || f.includes('estado')) {
+    return 'Localização/Endereço'
+  }
 
   // IDs
   if (f === 'id' || f === 'codigo' || f === 'code' || f.startsWith('cod')) return 'Identificador'

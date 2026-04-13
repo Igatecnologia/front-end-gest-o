@@ -9,6 +9,7 @@ import {
   App,
   Button,
   Card,
+  Checkbox,
   Col,
   DatePicker,
   Empty,
@@ -20,7 +21,9 @@ import {
   Select,
   Skeleton,
   Space,
+  Switch,
   Tag,
+  Typography,
 } from 'antd'
 import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
@@ -29,7 +32,12 @@ import { PageHeaderCard } from '../components/PageHeaderCard'
 import { MetricCard } from '../components/MetricCard'
 import { VirtualTable, type VirtualColumn } from '../components/VirtualTable'
 import { useAuth } from '../auth/AuthContext'
-import { hasPermission } from '../auth/permissions'
+import {
+  defaultPermissionsForRole,
+  hasPermission,
+  PERMISSION_GROUPS,
+  type Permission,
+} from '../auth/permissions'
 import type { User, UserRole } from '../types/models'
 import { createUser, deleteUser, listUsers, updateUser } from '../services/usersService'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -45,6 +53,9 @@ type UserForm = {
   role: UserRole
   status: User['status']
   password?: string
+  /** Se true, envia `permissionList` ao servidor; se false, usa só o perfil (update envia null para limpar). */
+  customizePermissions: boolean
+  permissionList: Permission[]
 }
 
 function roleTag(role: UserRole) {
@@ -86,7 +97,8 @@ export function UsersPage() {
     },
   })
   const updateMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<UserForm> }) => updateUser(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof updateUser>[1] }) =>
+      updateUser(id, patch),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['users'] })
     },
@@ -160,6 +172,17 @@ export function UsersPage() {
       { key: 'email', title: 'E-mail', render: (u) => u.email },
       { key: 'role', title: 'Perfil', width: 120, render: (u) => roleTag(u.role) },
       {
+        key: 'access',
+        title: 'Acesso',
+        width: 130,
+        render: (u) =>
+          u.permissions != null && u.permissions.length > 0 ? (
+            <Tag color="purple">Personalizado</Tag>
+          ) : (
+            <Tag>Padrão do perfil</Tag>
+          ),
+      },
+      {
         key: 'status',
         title: 'Status',
         width: 120,
@@ -183,11 +206,16 @@ export function UsersPage() {
               disabled={!canWrite}
               onClick={() => {
                 setEditing(record)
+                const hasCustom = record.permissions != null && record.permissions.length > 0
                 form.setFieldsValue({
                   name: record.name,
                   email: record.email,
                   role: record.role,
                   status: record.status,
+                  customizePermissions: hasCustom,
+                  permissionList: hasCustom
+                    ? (record.permissions as Permission[])
+                    : defaultPermissionsForRole(record.role),
                 })
                 setModalOpen(true)
               }}
@@ -230,7 +258,12 @@ export function UsersPage() {
         onClick={() => {
           setEditing(null)
           form.resetFields()
-          form.setFieldsValue({ role: 'viewer', status: 'active' })
+          form.setFieldsValue({
+            role: 'viewer',
+            status: 'active',
+            customizePermissions: false,
+            permissionList: defaultPermissionsForRole('viewer'),
+          })
           setModalOpen(true)
         }}
       >
@@ -404,6 +437,7 @@ export function UsersPage() {
       <Modal
         open={modalOpen}
         title={editing ? 'Editar usuário' : 'Novo usuário'}
+        width={640}
         okText={editing ? 'Salvar' : 'Criar'}
         cancelText="Cancelar"
         confirmLoading={saving}
@@ -413,13 +447,25 @@ export function UsersPage() {
             const values = await form.validateFields()
             setSaving(true)
             if (editing) {
-              const { password, ...rest } = values
-              const patch: Partial<UserForm> = { ...rest }
+              const { password, customizePermissions, permissionList, ...rest } = values
+              const patch: Parameters<typeof updateUser>[1] = { ...rest }
               if (password) patch.password = password
+              if (customizePermissions && permissionList?.length) {
+                patch.permissions = permissionList
+              } else {
+                patch.permissions = null
+              }
               await updateMutation.mutateAsync({ id: editing.id, patch })
               notification.success({ title: 'Usuário atualizado' })
             } else {
-              await createMutation.mutateAsync(values as Required<Pick<UserForm, 'password'>> & UserForm)
+              const { customizePermissions, permissionList, ...createValues } = values
+              await createMutation.mutateAsync({
+                ...createValues,
+                password: createValues.password!,
+                ...(customizePermissions && permissionList?.length
+                  ? { permissions: permissionList }
+                  : {}),
+              })
               notification.success({ title: 'Usuário criado' })
             }
             setModalOpen(false)
@@ -475,6 +521,11 @@ export function UsersPage() {
                     { value: 'manager', label: 'Manager' },
                     { value: 'viewer', label: 'Viewer' },
                   ]}
+                  onChange={(r: UserRole) => {
+                    if (form.getFieldValue('customizePermissions')) {
+                      form.setFieldValue('permissionList', defaultPermissionsForRole(r))
+                    }
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -493,6 +544,67 @@ export function UsersPage() {
               </Form.Item>
             </Col>
           </Row>
+
+          <Form.Item
+            label="Permissões de acesso"
+            extra={
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Por padrão, o sistema usa o pacote do perfil (Admin / Gerente / Visualizador). Ative para
+                escolher exatamente o que este usuário pode ver e fazer.
+              </Typography.Text>
+            }
+          >
+            <Space orientation="vertical" size={8} style={{ width: '100%' }}>
+              <Form.Item name="customizePermissions" valuePropName="checked" noStyle>
+                <Switch
+                  checkedChildren="Lista personalizada"
+                  unCheckedChildren="Padrão do perfil"
+                  onChange={(checked) => {
+                    if (checked) {
+                      const role = form.getFieldValue('role') as UserRole
+                      form.setFieldValue('permissionList', defaultPermissionsForRole(role))
+                    }
+                  }}
+                />
+              </Form.Item>
+              <Form.Item noStyle shouldUpdate={(a, b) => a.customizePermissions !== b.customizePermissions}>
+                {() =>
+                  form.getFieldValue('customizePermissions') ? (
+                    <Form.Item
+                      name="permissionList"
+                      rules={[
+                        {
+                          validator: (_, value: Permission[] | undefined) => {
+                            if (value?.length) return Promise.resolve()
+                            return Promise.reject(new Error('Selecione ao menos uma permissão.'))
+                          },
+                        },
+                      ]}
+                    >
+                      <Checkbox.Group style={{ width: '100%' }}>
+                        <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+                          {PERMISSION_GROUPS.map((g) => (
+                            <div key={g.title}>
+                              <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
+                                {g.title}
+                              </Typography.Text>
+                              <Row gutter={[8, 8]}>
+                                {g.items.map((item) => (
+                                  <Col xs={24} sm={12} key={item.value}>
+                                    <Checkbox value={item.value}>{item.label}</Checkbox>
+                                  </Col>
+                                ))}
+                              </Row>
+                            </div>
+                          ))}
+                        </Space>
+                      </Checkbox.Group>
+                    </Form.Item>
+                  ) : null
+                }
+              </Form.Item>
+            </Space>
+          </Form.Item>
         </Form>
       </Modal>
     </Space>

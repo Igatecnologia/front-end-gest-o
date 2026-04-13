@@ -46,7 +46,7 @@ import { ChartShell } from '../components/ChartShell'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { DevErrorDetail } from '../components/DevErrorDetail'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { hasAnySources } from '../services/dataSourceService'
+import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import { getErrorMessage } from '../api/httpError'
@@ -94,11 +94,13 @@ export function DashboardPage() {
   const startDate = searchParams.get('start') ?? ''
   const endDate = searchParams.get('end') ?? ''
   const pollMs = Number(searchParams.get('pollMs') ?? 0)
+  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
+  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
   const realtimeEnabled = pollMs > 0
   const { lastPulseAt, transport } = useRealtimeHeartbeat(realtimeEnabled, pollMs || 5_000)
 
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.dashboard({ period, pollMs: String(pollMs), start: startDate, end: endDate }),
+    queryKey: queryKeys.dashboard({ period, pollMs: String(pollMs), start: startDate, end: endDate, sourceId }),
     queryFn: () => getDashboardData({ period, startDate: startDate || undefined, endDate: endDate || undefined }),
     refetchInterval: realtimeEnabled ? pollMs : false,
     staleTime: hasAnySources() ? ANALITICO_STALE_MS : 15_000,
@@ -190,6 +192,7 @@ export function DashboardPage() {
       subtitle="Visão consolidada do desempenho comercial da empresa."
       extra={
         <Space size={8}>
+          <Tag color="blue">{sourceLabel}</Tag>
           {lastPulseAt && (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               Atualizado {dayjs(dashboardQuery.dataUpdatedAt).format('HH:mm:ss')}
@@ -558,7 +561,7 @@ export function DashboardPage() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
           gap: 10,
         }}>
-          {derived.ultimasVendas.map((venda, i) => (
+          {derived.ultimasVendas.map((venda) => (
             <div key={venda.id} style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '10px 14px', borderRadius: 10,

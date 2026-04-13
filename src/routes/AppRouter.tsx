@@ -5,6 +5,9 @@ import { AppLayout } from '../layouts/AppLayout'
 import { RequireAuth } from './RequireAuth'
 import { RequirePermission } from './RequirePermission'
 
+const GestaoExecutivaPage = lazy(() =>
+  import('../pages/GestaoExecutivaPage').then((m) => ({ default: m.GestaoExecutivaPage })),
+)
 const DashboardPage = lazy(() =>
   import('../pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 )
@@ -12,9 +15,6 @@ const DashboardInsightsPage = lazy(() =>
   import('../pages/DashboardInsightsPage').then((m) => ({
     default: m.DashboardInsightsPage,
   })),
-)
-const DashboardDataPage = lazy(() =>
-  import('../pages/DashboardDataPage').then((m) => ({ default: m.DashboardDataPage })),
 )
 const VendasAnaliticoPage = lazy(() =>
   import('../pages/VendasAnaliticoPage').then((m) => ({ default: m.VendasAnaliticoPage })),
@@ -60,6 +60,15 @@ const AlertasPage = lazy(() =>
 const DataSourceConfigPage = lazy(() =>
   import('../pages/DataSourceConfigPage').then((m) => ({ default: m.DataSourceConfigPage })),
 )
+const OpsStatusPage = lazy(() =>
+  import('../pages/OpsStatusPage').then((m) => ({ default: m.OpsStatusPage })),
+)
+const SuporteTecnicoPage = lazy(() =>
+  import('../pages/SuporteTecnicoPage').then((m) => ({ default: m.SuporteTecnicoPage })),
+)
+const FaleConoscoSuportePage = lazy(() =>
+  import('../pages/FaleConoscoSuportePage').then((m) => ({ default: m.FaleConoscoSuportePage })),
+)
 
 export function AppRouter() {
   return (
@@ -86,7 +95,15 @@ export function AppRouter() {
             </RequireAuth>
           }
         >
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route index element={<Navigate to="/gestao" replace />} />
+          <Route
+            path="/gestao"
+            element={
+              <RequirePermission permission="dashboard:view">
+                <GestaoExecutivaPage />
+              </RequirePermission>
+            }
+          />
           <Route
             path="/dashboard"
             element={
@@ -195,7 +212,31 @@ export function AppRouter() {
               </RequirePermission>
             }
           />
-          <Route path="/fontes-de-dados" element={<DataSourceConfigPage />} />
+          <Route path="/suporte/fale-conosco" element={<FaleConoscoSuportePage />} />
+          <Route
+            path="/suporte"
+            element={
+              <RequirePermission permission="support:view">
+                <SuporteTecnicoPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/fontes-de-dados"
+            element={
+              <RequirePermission permission="datasources:view">
+                <DataSourceConfigPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/admin/operacao"
+            element={
+              <RequirePermission permission="operations:view">
+                <OpsStatusPage />
+              </RequirePermission>
+            }
+          />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

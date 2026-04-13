@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { TenantContext, DEFAULT_TENANT, type TenantConfig } from './TenantContext'
-import { publicAssetUrl } from '../utils/publicAssetUrl'
+import { TenantContext, DEFAULT_TENANT, defaultBrandLogoUrl, type TenantConfig } from './TenantContext'
 import { setCurrentTenantId } from './tenantStorage'
 
 function resolveTenantId(): string {
@@ -13,10 +12,13 @@ function resolveTenantId(): string {
 }
 
 function loadTenantFromEnv(tenantId: string): TenantConfig {
+  const companyName = import.meta.env.VITE_COMPANY_NAME?.toString().trim() || DEFAULT_TENANT.companyName
+  const explicitLogoUrl = import.meta.env.VITE_LOGO_URL?.toString().trim()
+
   return {
     tenantId,
-    companyName: import.meta.env.VITE_COMPANY_NAME?.toString().trim() || DEFAULT_TENANT.companyName,
-    logoUrl: import.meta.env.VITE_LOGO_URL?.toString().trim() || publicAssetUrl('logo.png.png'),
+    companyName,
+    logoUrl: explicitLogoUrl || defaultBrandLogoUrl(),
     subtitle: import.meta.env.VITE_COMPANY_SUBTITLE?.toString().trim() || DEFAULT_TENANT.subtitle,
     primaryColor: import.meta.env.VITE_PRIMARY_COLOR?.toString().trim() || undefined,
   }
@@ -35,10 +37,11 @@ async function fetchTenantConfig(tenantId: string): Promise<TenantConfig | null>
     })
     if (!res.ok) return null
     const data = await res.json()
+    const companyName = data.companyName ?? DEFAULT_TENANT.companyName
     return {
       tenantId,
-      companyName: data.companyName ?? DEFAULT_TENANT.companyName,
-      logoUrl: data.logoUrl ?? publicAssetUrl('logo.png.png'),
+      companyName,
+      logoUrl: data.logoUrl || defaultBrandLogoUrl(),
       subtitle: data.subtitle ?? DEFAULT_TENANT.subtitle,
       primaryColor: data.primaryColor ?? undefined,
     }

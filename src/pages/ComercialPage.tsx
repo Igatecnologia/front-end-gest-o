@@ -1,4 +1,5 @@
 import {
+  Alert,
   Card,
   Col,
   Empty,
@@ -38,6 +39,7 @@ import type {
   Faturamento,
   StatusOperacional,
   FormaPagamento,
+  TipoDocumentoFiscal,
 } from '../types/models'
 
 /* ── Helpers ── */
@@ -62,6 +64,34 @@ const statusIcon: Record<string, React.ReactNode> = {
   Faturado: <FileTextOutlined />,
   Cancelado: <WarningOutlined />,
 }
+
+const TIPO_DOC_META: Record<
+  TipoDocumentoFiscal,
+  { color: string; desc: string }
+> = {
+  'NF-e': {
+    color: 'blue',
+    desc: 'NF-e — mercadorias (modelo 55), documento fiscal eletrônico federal.',
+  },
+  'NFS-e': {
+    color: 'geekblue',
+    desc: 'NFS-e — nota fiscal de serviços eletrônica (prefeitura / ISS).',
+  },
+  'NFC-e': {
+    color: 'cyan',
+    desc: 'NFC-e — nota ao consumidor final (varejo / PDV).',
+  },
+  'CT-e': {
+    color: 'purple',
+    desc: 'CT-e — conhecimento de transporte eletrônico.',
+  },
+  Outro: {
+    color: 'default',
+    desc: 'Outro documento ou nota não classificada nos padrões acima.',
+  },
+}
+
+const TIPO_DOC_ORDER: TipoDocumentoFiscal[] = ['NF-e', 'NFS-e', 'NFC-e', 'CT-e', 'Outro']
 
 /* ══════════════════════════════════════════════════════════════
    Tab 1 — Pedidos de Clientes
@@ -371,6 +401,7 @@ function FaturamentoTab() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search)
   const [status, setStatus] = useState<'all' | Faturamento['status']>('all')
+  const [tipoDoc, setTipoDoc] = useState<'all' | TipoDocumentoFiscal>('all')
 
   const { data: faturamentos, isLoading } = useQuery({
     queryKey: queryKeys.faturamentos(),
@@ -382,12 +413,19 @@ function FaturamentoTab() {
     const q = debouncedSearch.toLowerCase()
     return faturamentos
       .filter((f) => {
-        const textMatch = !q || f.cliente.toLowerCase().includes(q) || f.numeroNF.toLowerCase().includes(q) || f.pedidoId.toLowerCase().includes(q)
+        const tipo = f.tipoDocumento ?? 'NF-e'
+        const textMatch =
+          !q ||
+          f.cliente.toLowerCase().includes(q) ||
+          f.numeroNF.toLowerCase().includes(q) ||
+          f.pedidoId.toLowerCase().includes(q) ||
+          tipo.toLowerCase().includes(q)
         const statusMatch = status === 'all' || f.status === status
-        return textMatch && statusMatch
+        const tipoMatch = tipoDoc === 'all' || tipo === tipoDoc
+        return textMatch && statusMatch && tipoMatch
       })
       .sort((a, b) => dayjs(b.data).valueOf() - dayjs(a.data).valueOf())
-  }, [faturamentos, debouncedSearch, status])
+  }, [faturamentos, debouncedSearch, status, tipoDoc])
 
   const metrics = useMemo(() => {
     const emitidas = filtered.filter((f) => f.status === 'Emitida')
@@ -397,10 +435,47 @@ function FaturamentoTab() {
     const totalFrete = filtered.reduce((s, f) => s + f.valorFrete, 0)
     const nfsEmitidas = emitidas.length
     const pendentes = filtered.filter((f) => f.status === 'Pendente').length
-    return { totalFaturado, totalProdutos, totalImpostos, totalFrete, nfsEmitidas, pendentes }
+    const emitidasByTipo = TIPO_DOC_ORDER.reduce(
+      (acc, t) => {
+        acc[t] = emitidas.filter((f) => (f.tipoDocumento ?? 'NF-e') === t).length
+        return acc
+      },
+      {} as Record<TipoDocumentoFiscal, number>,
+    )
+    return {
+      totalFaturado,
+      totalProdutos,
+      totalImpostos,
+      totalFrete,
+      nfsEmitidas,
+      pendentes,
+      emitidasByTipo,
+    }
   }, [filtered])
 
+  const resumoTiposEmitidas = useMemo(() => {
+    const parts = TIPO_DOC_ORDER.filter((t) => metrics.emitidasByTipo[t] > 0).map(
+      (t) => `${t}: ${metrics.emitidasByTipo[t]}`,
+    )
+    return parts.length ? parts.join(' · ') : undefined
+  }, [metrics.emitidasByTipo])
+
   const columns: ColumnsType<Faturamento> = [
+    {
+      title: 'Documento',
+      dataIndex: 'tipoDocumento',
+      key: 'tipoDocumento',
+      width: 108,
+      render: (_: unknown, row: Faturamento) => {
+        const t = row.tipoDocumento ?? 'NF-e'
+        const meta = TIPO_DOC_META[t]
+        return (
+          <Tooltip title={meta.desc}>
+            <Tag color={meta.color}>{t}</Tag>
+          </Tooltip>
+        )
+      },
+    },
     { title: 'Nº NF', dataIndex: 'numeroNF', key: 'numeroNF', width: 110, render: (v: string) => v || <Typography.Text type="secondary">—</Typography.Text> },
     {
       title: 'Emissão', dataIndex: 'data', key: 'data', width: 110,
@@ -437,16 +512,55 @@ function FaturamentoTab() {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Row gutter={[12, 12]}>
         <Col xs={12} sm={6}><MetricCard title="Faturado" value={formatBRL(metrics.totalFaturado)} accentColor="#10B981" /></Col>
-        <Col xs={12} sm={6}><MetricCard title="NFs Emitidas" value={String(metrics.nfsEmitidas)} subtitle={metrics.pendentes > 0 ? `${metrics.pendentes} pendentes` : undefined} accentColor="#3B82F6" /></Col>
+        <Col xs={12} sm={6}>
+          <MetricCard
+            title="Docs emitidos"
+            value={String(metrics.nfsEmitidas)}
+            subtitle={
+              [metrics.pendentes > 0 ? `${metrics.pendentes} pendentes` : null, resumoTiposEmitidas]
+                .filter(Boolean)
+                .join(' · ') || undefined
+            }
+            accentColor="#3B82F6"
+          />
+        </Col>
         <Col xs={12} sm={6}><MetricCard title="Impostos" value={formatBRL(metrics.totalImpostos)} accentColor="#F59E0B" /></Col>
         <Col xs={12} sm={6}><MetricCard title="Frete" value={formatBRL(metrics.totalFrete)} accentColor="#8B5CF6" /></Col>
       </Row>
+
+      <Alert
+        type="info"
+        showIcon
+        message="Tipos de documento fiscal"
+        description={
+          <Space wrap size={[8, 8]}>
+            {TIPO_DOC_ORDER.map((t) => (
+              <Tooltip key={t} title={TIPO_DOC_META[t].desc}>
+                <Tag color={TIPO_DOC_META[t].color}>{t}</Tag>
+              </Tooltip>
+            ))}
+          </Space>
+        }
+        style={{ marginBottom: 0 }}
+      />
 
       <Card className="app-card no-hover" variant="borderless" title="Filtros">
         <div className="filter-bar">
           <div className="filter-item" style={{ flex: '1 1 280px' }}>
             <span>Buscar</span>
-            <Input.Search allowClear placeholder="Cliente, nº NF ou pedido..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input.Search allowClear placeholder="Cliente, nº NF, pedido ou tipo (ex.: NFS-e)..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <div className="filter-item">
+            <span>Tipo fiscal</span>
+            <Select
+              value={tipoDoc}
+              style={{ width: 160 }}
+              onChange={setTipoDoc}
+              options={[
+                { value: 'all', label: 'Todos' },
+                ...TIPO_DOC_ORDER.map((t) => ({ value: t, label: t })),
+              ]}
+            />
           </div>
           <div className="filter-item">
             <span>Situação</span>
@@ -460,7 +574,7 @@ function FaturamentoTab() {
         </div>
       </Card>
 
-      <Card className="app-card quantum-table" variant="borderless" title={`Notas Fiscais (${filtered.length})`}>
+      <Card className="app-card quantum-table" variant="borderless" title={`Notas fiscais (${filtered.length})`}>
         {filtered.length === 0 ? (
           <Empty description="Nenhuma nota fiscal encontrada." />
         ) : (
@@ -469,7 +583,7 @@ function FaturamentoTab() {
             columns={columns}
             dataSource={filtered}
             pagination={{ pageSize: 12, showSizeChanger: true }}
-            scroll={{ x: 1200 }}
+            scroll={{ x: 1320 }}
             aria-label="Tabela de notas fiscais"
           />
         )}
@@ -512,9 +626,11 @@ export function ComercialPage() {
     {
       key: 'notas-fiscais',
       label: (
-        <span>
-          <FileTextOutlined /> Notas Fiscais
-        </span>
+        <Tooltip title="NF-e, NFS-e, NFC-e, CT-e e outros documentos fiscais">
+          <span>
+            <FileTextOutlined /> Notas fiscais
+          </span>
+        </Tooltip>
       ),
       children: <FaturamentoTab />,
     },

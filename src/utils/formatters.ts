@@ -13,11 +13,8 @@ export function formatNumber(value: number): string {
   return value.toLocaleString('pt-BR')
 }
 
-/** Formato compacto para eixos de graficos (1.2K, 3.5M) */
+/** Formato completo para valores monetarios (sem abreviacao K/M) */
 export function formatCompact(value: number): string {
-  const abs = Math.abs(value)
-  if (abs >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`
-  if (abs >= 1_000) return `R$ ${(value / 1_000).toFixed(1)}K`
   return formatBRL(value)
 }
 

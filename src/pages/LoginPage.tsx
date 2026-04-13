@@ -1,5 +1,5 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Form, Input, Space, Typography } from 'antd'
+import { Alert, Button, Card, Form, Input, Space } from 'antd'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
@@ -25,7 +25,7 @@ export function LoginPage() {
 
   const from = sanitizeAppRedirectPath(
     (location.state as { from?: string } | null)?.from,
-    '/dashboard',
+    '/gestao',
   )
 
   const [configured, setConfigured] = useState<boolean | null>(null)
@@ -77,7 +77,13 @@ export function LoginPage() {
     <div className="login-shell">
       <div className="login-card-wrap">
         <div className="login-brand-strip">
-          <img src={tenant.logoUrl} alt={tenant.companyName} />
+          {tenant.logoUrl ? (
+            <img
+              src={tenant.logoUrl}
+              alt={tenant.companyName}
+              className="login-header-logo"
+            />
+          ) : null}
           <div>
             <div className="login-brand-text">{tenant.companyName}</div>
             <div className="login-brand-sub">{tenant.subtitle}</div>

@@ -7,8 +7,8 @@ import {
   Select,
   Skeleton,
   Space,
+  Tag,
   Tabs,
-  Typography,
 } from 'antd'
 import {
   SwapOutlined,
@@ -21,7 +21,7 @@ import dayjs from 'dayjs'
 import { Suspense, lazy, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { hasAnySources } from '../services/dataSourceService'
+import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 
 import { MetricCard } from '../components/MetricCard'
@@ -59,6 +59,7 @@ function VisaoGeralTab() {
   const [range, setRange] = useState<[string, string] | null>(null)
 
   const defaultFinanceRange = useMemo(() => financeRangeDefault(), [])
+  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
   const effectiveFinanceRange: [string, string] = range ?? [
     defaultFinanceRange.dtDe,
     defaultFinanceRange.dtAte,
@@ -66,7 +67,7 @@ function VisaoGeralTab() {
 
   const financeQuery = useQuery({
     queryKey: hasAnySources()
-      ? queryKeys.finance({ dtDe: effectiveFinanceRange[0], dtAte: effectiveFinanceRange[1] })
+      ? queryKeys.finance({ dtDe: effectiveFinanceRange[0], dtAte: effectiveFinanceRange[1], sourceId })
       : queryKeys.finance(),
     queryFn: () =>
       hasAnySources()
@@ -286,6 +287,7 @@ function VisaoGeralTab() {
 export function FinancePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('tab') ?? 'visao-geral'
+  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
 
   const handleTabChange = (key: string) => {
     setSearchParams({ tab: key }, { replace: true })
@@ -339,6 +341,7 @@ export function FinancePage() {
       <PageHeaderCard
         title="Financeiro"
         subtitle="Controle financeiro completo: visão geral, conciliação e contas."
+        extra={<Tag color="blue">{sourceLabel}</Tag>}
       />
 
       <Card className="app-card no-hover" variant="borderless" style={{ padding: 0 }}>

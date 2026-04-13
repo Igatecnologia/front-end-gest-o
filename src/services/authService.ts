@@ -1,4 +1,5 @@
 import type { AuthSession } from '../auth/authStorage'
+import { ALL_PERMISSIONS, defaultPermissionsForRole } from '../auth/permissions'
 import { postValidated } from '../api/validatedHttp'
 import { localLoginResponseSchema, sgbrUsuarioLoginResponseSchema } from '../api/schemas'
 import { http } from './http'
@@ -6,24 +7,9 @@ import { getAuthDataSource } from './dataSourceService'
 
 type SignInInput = { email: string; password: string }
 
-const ALL_PERMISSIONS: AuthSession['permissions'] = [
-  'dashboard:view',
-  'reports:view',
-  'reports:export',
-  'audit:view',
-  'audit:export',
-  'users:view',
-  'users:write',
-  'producao:view',
-  'producao:write',
-  'fichatecnica:view',
-  'fichatecnica:write',
-  'comercial:view',
-  'comercial:write',
-  'estoque:view',
-  'estoque:write',
-  'alertas:view',
-]
+function resolvePermissionsByRole(role: 'admin' | 'manager' | 'viewer'): AuthSession['permissions'] {
+  return defaultPermissionsForRole(role)
+}
 
 /** Mensagem genérica — não revela se o usuário existe ou não */
 const INVALID_CREDENTIALS_MSG = 'Usuário ou senha incorretos.'
@@ -45,10 +31,13 @@ export async function signIn(input: SignInInput): Promise<AuthSession> {
       localLoginResponseSchema,
     )
 
+    const permissions =
+      data.permissions?.length > 0 ? data.permissions : resolvePermissionsByRole(data.user.role)
+
     return {
       token: data.token,
       user: data.user,
-      permissions: ALL_PERMISSIONS,
+      permissions,
     }
   } catch (localErr) {
     const is401 =
@@ -78,9 +67,9 @@ export async function signIn(input: SignInInput): Promise<AuthSession> {
             id: String(data.id_usuario),
             name: data.nome_usuario,
             email,
-            role: 'admin',
+            role: 'viewer',
           },
-          permissions: ALL_PERMISSIONS,
+          permissions: resolvePermissionsByRole('viewer'),
         }
       } catch {
         throw new Error(INVALID_CREDENTIALS_MSG)

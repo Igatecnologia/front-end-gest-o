@@ -11,6 +11,8 @@ export type User = {
   email: string
   role: UserRole
   status: 'active' | 'inactive'
+  /** `null` ou ausente = pacote padrão do perfil; array = lista gravada no servidor */
+  permissions?: string[] | null
   password?: string
   createdAt: string
   updatedAt?: string
@@ -166,8 +168,13 @@ export type OrdemProducao = {
   status: StatusOperacional; dataPrevista: string; dataConclusao: string | null; observacoes: string
 }
 
+/** Documentos fiscais eletrônicos comuns no Brasil (exibição na aba Notas fiscais). */
+export type TipoDocumentoFiscal = 'NF-e' | 'NFS-e' | 'NFC-e' | 'CT-e' | 'Outro'
+
 export type Faturamento = {
   id: string; data: string; pedidoId: string; cliente: string; numeroNF: string
+  /** NF-e mercadorias, NFS-e serviço municipal, NFC-e consumidor, CT-e transporte. */
+  tipoDocumento: TipoDocumentoFiscal
   valorProdutos: number; valorFrete: number; valorImpostos: number; valorTotal: number
   formaPagamento: FormaPagamento; status: 'Emitida' | 'Cancelada' | 'Pendente'
 }

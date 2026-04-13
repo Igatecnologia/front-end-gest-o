@@ -20,7 +20,7 @@ export function RequirePermission({
         subTitle="Você não tem permissão para acessar esta página."
         extra={
           <Button type="primary">
-            <Link to="/dashboard">Voltar</Link>
+            <Link to="/gestao">Início</Link>
           </Button>
         }
       />

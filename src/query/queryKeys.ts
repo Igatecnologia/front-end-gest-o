@@ -1,7 +1,7 @@
 export const queryKeys = {
-  dashboard: (params: { period: string; pollMs?: string; start?: string; end?: string }) => ['dashboard', params] as const,
-  finance: (range?: { dtDe: string; dtAte: string }) =>
-    range ? (['finance', 'sgbr', range.dtDe, range.dtAte] as const) : (['finance'] as const),
+  dashboard: (params: { period: string; pollMs?: string; start?: string; end?: string; sourceId?: string }) => ['dashboard', params] as const,
+  finance: (range?: { dtDe: string; dtAte: string; sourceId?: string }) =>
+    range ? (['finance', 'sgbr', range.dtDe, range.dtAte, range.sourceId ?? 'default'] as const) : (['finance'] as const),
   reports: (params: {
     q?: string
     cat?: string
@@ -18,7 +18,7 @@ export const queryKeys = {
   audit: (params: { q?: string; action?: string }) => ['audit', params] as const,
   users: (params: { q?: string; role?: string; status?: string }) =>
     ['users', params] as const,
-  vendasAnalitico: (params: { dtDe: string; dtAte: string }) =>
+  vendasAnalitico: (params: { dtDe: string; dtAte: string; sourceId?: string }) =>
     ['vendasAnalitico', params] as const,
 
   conciliacao: () => ['conciliacao'] as const,
@@ -43,5 +43,7 @@ export const queryKeys = {
   /* ── Fontes de Dados ── */
   dataSources: () => ['dataSources'] as const,
   dataSource: (id: string) => ['dataSources', id] as const,
+
+  opsStatus: () => ['opsStatus'] as const,
 } as const
 

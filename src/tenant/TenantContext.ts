@@ -1,5 +1,11 @@
 import { createContext, useContext } from 'react'
 
+/** Logo oficial em `public/logo.png.png` (URL absoluta ao base do Vite). */
+export function defaultBrandLogoUrl(): string {
+  const base = import.meta.env.BASE_URL || '/'
+  return base.endsWith('/') ? `${base}logo.png.png` : `${base}/logo.png.png`
+}
+
 export type TenantConfig = {
   /** Identificador único do tenant (ex: slug, UUID) */
   tenantId: string
@@ -21,7 +27,7 @@ export type TenantContextValue = {
 export const DEFAULT_TENANT: TenantConfig = {
   tenantId: 'default',
   companyName: 'IGA',
-  logoUrl: '',
+  logoUrl: defaultBrandLogoUrl(),
   subtitle: 'Automação & Tecnologia',
 }
 

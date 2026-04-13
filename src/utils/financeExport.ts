@@ -1,7 +1,6 @@
 import dayjs from 'dayjs'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
 import { logExportAudit } from './auditExport'
 
 type ExportColumn = { header: string; key: string; format?: (v: unknown) => string }
@@ -19,25 +18,42 @@ function basename(reportName: string) {
 }
 
 /* ───────── Excel ───────── */
+function sanitizeCsvCell(value: unknown): string {
+  const raw = String(value ?? '')
+  const escaped = raw.replace(/"/g, '""')
+  return /^[=+\-@]/.test(escaped) ? `'${escaped}'` : escaped
+}
+
 export function exportExcel<T extends Record<string, unknown>>(
   rows: T[],
   columns: ExportColumn[],
   sheetName: string,
   reportName: string,
 ) {
-  const data = rows.map((row) => {
-    const obj: Record<string, unknown> = {}
-    for (const col of columns) {
-      const raw = row[col.key]
-      obj[col.header] = col.format ? col.format(raw) : raw
-    }
-    return obj
+  const csvRows = [
+    columns.map((col) => `"${sanitizeCsvCell(col.header)}"`).join(';'),
+    ...rows.map((row) =>
+      columns
+        .map((col) => {
+          const raw = row[col.key]
+          const value = col.format ? col.format(raw) : raw
+          return `"${sanitizeCsvCell(value)}"`
+        })
+        .join(';'),
+    ),
+  ]
+  const csv = `\uFEFF${csvRows.join('\n')}`
+  const blob = new Blob([csv], {
+    type: 'text/csv;charset=utf-8;',
   })
-  const sheet = XLSX.utils.json_to_sheet(data)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, sheet, sheetName)
-  XLSX.writeFile(wb, `${basename(reportName)}.xlsx`)
-  logExportAudit({ reportName, format: 'excel', rowCount: rows.length })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${basename(reportName)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+
+  logExportAudit({ reportName: `${reportName}:${sheetName}`, format: 'excel', rowCount: rows.length })
 }
 
 /* ───────── PDF ───────── */

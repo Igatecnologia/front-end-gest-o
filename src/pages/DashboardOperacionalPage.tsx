@@ -540,11 +540,7 @@ export function DashboardOperacionalPage() {
         <Col xs={24} sm={12} lg={8} xl={4}>
           <MetricCard
             title="Margem Média Real"
-            value={
-              <span style={{ color: margemColor(margemMedia) }}>
-                {margemMedia.toFixed(1)}%
-              </span>
-            }
+            value={`${margemMedia.toFixed(1)}%`}
           />
         </Col>
       </Row>

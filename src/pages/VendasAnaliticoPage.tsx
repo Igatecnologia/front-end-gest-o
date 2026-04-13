@@ -3,7 +3,6 @@ import {
   EyeOutlined,
   PercentageOutlined,
   PieChartOutlined,
-  ReloadOutlined,
   ShoppingCartOutlined,
   TeamOutlined,
   UnorderedListOutlined,
@@ -31,7 +30,7 @@ import { useSearchParams } from 'react-router-dom'
 import { DevErrorDetail } from '../components/DevErrorDetail'
 import { VendaAnaliticoDetailDrawer } from '../components/VendaAnaliticoDetailDrawer'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { hasAnySources } from '../services/dataSourceService'
+import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
 import { getErrorMessage } from '../api/httpError'
 import type { VendaAnaliticaRow } from '../api/schemas'
 import { PageHeaderCard } from '../components/PageHeaderCard'
@@ -93,10 +92,13 @@ function PedidosContent() {
   const statusFilter = searchParams.get('status') ?? 'all'
 
   const biConfigured = hasAnySources()
+  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
   const [detailPedido, setDetailPedido] = useState<PedidoAgrupado | null>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 100
 
   const query = useQuery({
-    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end }),
+    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end, sourceId }),
     queryFn: () => getVendasAnalitico({ dtDe: start, dtAte: end }),
     enabled: biConfigured,
     staleTime: ANALITICO_STALE_MS,
@@ -107,7 +109,17 @@ function PedidosContent() {
     const rows = query.data ?? []
     const map = new Map<string, VendaAnaliticaRow[]>()
     for (const r of rows) {
-      const key = `${r.codcliente}|${r.datafec}|${r.data}|${r.statuspedido}`
+      const raw = r as VendaAnaliticaRow & Record<string, unknown>
+      const pedidoId =
+        raw.dav ??
+        raw.codpedido ??
+        raw.numero_dav ??
+        raw.numerodav ??
+        raw.pedido ??
+        null
+      const key = pedidoId
+        ? `pedido:${String(pedidoId)}`
+        : `${r.codcliente}|${r.datafec}|${r.data}|${r.statuspedido}`
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(r)
     }
@@ -161,6 +173,11 @@ function PedidosContent() {
     })
   }, [pedidos, q, statusFilter])
 
+  const paged = useMemo(() => {
+    const startIdx = (page - 1) * pageSize
+    return filtered.slice(startIdx, startIdx + pageSize)
+  }, [filtered, page])
+
   // KPIs
   const metrics = useMemo(() => {
     const totalVendas = filtered.reduce((s, p) => s + p.totalPedido, 0)
@@ -205,6 +222,7 @@ function PedidosContent() {
               placeholder="Cliente, produto ou código..."
               value={searchParams.get('q') ?? ''}
               onChange={(e) => {
+                setPage(1)
                 setSearchParams((prev) => {
                   const p = new URLSearchParams(prev)
                   if (e.target.value.trim()) p.set('q', e.target.value)
@@ -220,6 +238,7 @@ function PedidosContent() {
               format="DD/MM/YYYY"
               value={[dayjs(start), dayjs(end)]}
               onChange={(vals) => {
+                setPage(1)
                 setSearchParams((prev) => {
                   const p = new URLSearchParams(prev)
                   const [from, to] = vals ?? []
@@ -238,6 +257,7 @@ function PedidosContent() {
               style={{ width: 150 }}
               value={statusFilter}
               onChange={(v) => {
+                setPage(1)
                 setSearchParams((prev) => {
                   const p = new URLSearchParams(prev)
                   if (v === 'all') p.delete('status')
@@ -300,7 +320,7 @@ function PedidosContent() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(0, 100).map((pedido) => (
+                {paged.map((pedido) => (
                   <tr key={pedido.key}
                     style={{ borderBottom: '1px solid var(--qc-border)', cursor: 'pointer', transition: 'background 120ms' }}
                     onClick={() => setDetailPedido(pedido)}
@@ -363,11 +383,22 @@ function PedidosContent() {
                 ))}
               </tbody>
             </table>
-            {filtered.length > 100 && (
-              <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', textAlign: 'center', padding: 12 }}>
-                Mostrando 100 de {filtered.length} pedidos. Use os filtros para refinar.
-              </Typography.Text>
-            )}
+          </div>
+        )}
+        {filtered.length > pageSize && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Página {page} de {Math.ceil(filtered.length / pageSize)} · {filtered.length} pedidos
+            </Typography.Text>
+            <Space>
+              <Button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
+              <Button
+                disabled={page >= Math.ceil(filtered.length / pageSize)}
+                onClick={() => setPage((p) => Math.min(Math.ceil(filtered.length / pageSize), p + 1))}
+              >
+                Próxima
+              </Button>
+            </Space>
           </div>
         )}
       </Card>
@@ -390,6 +421,7 @@ const tabFallback = <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 2
 export function VendasAnaliticoPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('view') ?? 'pedidos'
+  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
 
   const handleTabChange = (key: string) => {
     setSearchParams((prev) => {
@@ -430,6 +462,7 @@ export function VendasAnaliticoPage() {
       <PageHeaderCard
         title="Vendas"
         subtitle="Análise de vendas: pedidos, faturamento e curva ABC."
+        extra={<Tag color="blue">{sourceLabel}</Tag>}
       />
 
       <Card className="app-card no-hover" variant="borderless" style={{ padding: 0 }}>

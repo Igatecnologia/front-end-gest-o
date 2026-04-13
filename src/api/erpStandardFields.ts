@@ -26,7 +26,20 @@ export const ERP_STANDARD_FIELDS: Record<string, { label: string; fields: string
   },
   'faturamentos': {
     label: 'Faturamentos',
-    fields: ['id', 'data', 'pedidoId', 'cliente', 'numeroNF', 'valorProdutos', 'valorFrete', 'valorImpostos', 'valorTotal', 'formaPagamento', 'status'],
+    fields: [
+      'id',
+      'data',
+      'pedidoId',
+      'cliente',
+      'numeroNF',
+      'tipoDocumento',
+      'valorProdutos',
+      'valorFrete',
+      'valorImpostos',
+      'valorTotal',
+      'formaPagamento',
+      'status',
+    ],
   },
   'movimentos-estoque': {
     label: 'Movimentos de Estoque',

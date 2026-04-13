@@ -56,6 +56,7 @@ export function ChartTooltip({
 }
 
 /** CartesianGrid — so linhas horizontais, sem ruido */
+/* eslint-disable react-refresh/only-export-components -- props estaticas Recharts */
 export const gridProps = {
   strokeDasharray: '3 3',
   stroke: '#E2E8F0',
@@ -76,3 +77,4 @@ export const yAxisProps = {
   tickLine: false,
   width: 72,
 } as const
+/* eslint-enable react-refresh/only-export-components */

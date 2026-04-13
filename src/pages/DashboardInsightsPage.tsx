@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Suspense, lazy } from 'react'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { hasAnySources } from '../services/dataSourceService'
+import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import { getErrorMessage } from '../api/httpError'
@@ -22,9 +22,11 @@ export function DashboardInsightsPage() {
   const period = (searchParams.get('p') ?? '90d') as '7d' | '30d' | '90d'
   const startDate = searchParams.get('start') ?? ''
   const endDate = searchParams.get('end') ?? ''
+  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
+  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
 
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.dashboard({ period, start: startDate, end: endDate }),
+    queryKey: queryKeys.dashboard({ period, start: startDate, end: endDate, sourceId }),
     queryFn: () => getDashboardData({ period, startDate: startDate || undefined, endDate: endDate || undefined }),
     staleTime: hasAnySources() ? ANALITICO_STALE_MS : undefined,
   })
@@ -46,6 +48,7 @@ export function DashboardInsightsPage() {
       <PageHeaderCard
         title="Análises BI"
         subtitle="Inteligência comercial com gráficos analíticos baseados em dados reais de vendas. Selecione o período para explorar tendências, concentração de clientes e sazonalidade."
+        extra={<Tag color="blue">{sourceLabel}</Tag>}
       />
 
       <Card className="app-card no-hover" variant="borderless">

@@ -2,7 +2,12 @@ import { z } from 'zod'
 import type { User, UserRole } from '../types/models'
 import { http } from './http'
 import { getValidated, postValidated, putValidated } from '../api/validatedHttp'
-import { userCreateInputSchema, userSchema, usersResponseSchema } from '../api/schemas'
+import {
+  userCreateInputSchema,
+  userSchema,
+  userUpdateInputSchema,
+  usersResponseSchema,
+} from '../api/schemas'
 
 const BASE = '/api/v1/users'
 
@@ -16,6 +21,7 @@ export async function createUser(input: {
   role: UserRole
   status: User['status']
   password: string
+  permissions?: string[]
 }): Promise<User> {
   const payload = userCreateInputSchema.parse(input)
   return postValidated(http, BASE, payload, userSchema)
@@ -23,9 +29,11 @@ export async function createUser(input: {
 
 export async function updateUser(
   id: string,
-  patch: Partial<Pick<User, 'name' | 'email' | 'role' | 'status' | 'password'>>,
+  patch: Partial<Pick<User, 'name' | 'email' | 'role' | 'status' | 'password'>> & {
+    permissions?: string[] | null
+  },
 ): Promise<User> {
-  const payload = userCreateInputSchema.partial().parse(patch)
+  const payload = userUpdateInputSchema.parse(patch)
   return putValidated(http, `${BASE}/${id}`, payload, userSchema)
 }
 

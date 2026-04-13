@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { tenantStorage } from '../tenant/tenantStorage'
+import { getCurrentTenantId, tenantStorage } from '../tenant/tenantStorage'
 
 /** Schema de validação da sessão armazenada — protege contra dados corrompidos/manipulados */
 const sessionSchema = z.object({
@@ -17,18 +17,24 @@ export type AuthSession = z.infer<typeof sessionSchema>
 
 const AUTH_KEY = 'auth.session'
 
+function getSessionStorageKey(): string {
+  return `t:${getCurrentTenantId()}:${AUTH_KEY}`
+}
+
 export function getStoredSession(): AuthSession | null {
   try {
-    const raw = tenantStorage.getItem(AUTH_KEY)
+    const raw = window.sessionStorage.getItem(getSessionStorageKey())
     if (!raw) return null
     const parsed = sessionSchema.safeParse(JSON.parse(raw))
     if (!parsed.success) {
       // Dados corrompidos ou manipulados — limpar
+      window.sessionStorage.removeItem(getSessionStorageKey())
       tenantStorage.removeItem(AUTH_KEY)
       return null
     }
     return parsed.data
   } catch {
+    window.sessionStorage.removeItem(getSessionStorageKey())
     tenantStorage.removeItem(AUTH_KEY)
     return null
   }
@@ -36,8 +42,9 @@ export function getStoredSession(): AuthSession | null {
 
 export function setStoredSession(session: AuthSession | null) {
   if (!session) {
+    window.sessionStorage.removeItem(getSessionStorageKey())
     tenantStorage.removeItem(AUTH_KEY)
     return
   }
-  tenantStorage.setItem(AUTH_KEY, JSON.stringify(session))
+  window.sessionStorage.setItem(getSessionStorageKey(), JSON.stringify(session))
 }

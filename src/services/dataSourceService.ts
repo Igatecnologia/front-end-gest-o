@@ -38,6 +38,23 @@ export function getAuthDataSource(): DataSource | null {
   return readCache().find((ds) => ds.isAuthSource) ?? null
 }
 
+export function getDataSourceByEndpointHint(endpointHint: string): DataSource | null {
+  const hint = endpointHint.trim().toLowerCase()
+  if (!hint) return null
+  const all = readCache()
+  const exact = all.find((ds) => ds.dataEndpoint?.trim().toLowerCase() === hint)
+  if (exact) return exact
+  const partial = all.find((ds) => ds.dataEndpoint?.toLowerCase().includes(hint))
+  if (partial) return partial
+  return null
+}
+
+export function getDataSourceLabelByEndpointHint(endpointHint: string): string {
+  const ds = getDataSourceByEndpointHint(endpointHint)
+  if (!ds) return 'Fonte não identificada'
+  return `${ds.name} (${ds.id.slice(0, 8)})`
+}
+
 // ─── CRUD via backend ───────────────────────────────────────────────────────
 
 export async function listDataSources(): Promise<DataSource[]> {

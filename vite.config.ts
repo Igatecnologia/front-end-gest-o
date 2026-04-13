@@ -26,5 +26,19 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/jspdf') || id.includes('node_modules/jspdf-autotable')) return 'vendor-pdf'
+            if (id.includes('node_modules/html2canvas')) return 'vendor-html2canvas'
+            if (id.includes('node_modules/recharts')) return 'vendor-charts'
+            if (id.includes('node_modules/@tanstack')) return 'vendor-query'
+            return undefined
+          },
+        },
+      },
+      chunkSizeWarningLimit: 650,
+    },
   }
 })

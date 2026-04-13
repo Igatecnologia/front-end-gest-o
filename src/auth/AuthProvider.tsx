@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     http.get('/health').catch(() => {
       // Se o backend estiver indisponível, manter sessão (offline)
-    }).then((res) => {
+    }).then(() => {
       if (cancelled) return
       // Se o backend respondeu mas a sessão pode ter expirado,
       // a próxima chamada autenticada vai retornar 401 e o interceptor faz logout
