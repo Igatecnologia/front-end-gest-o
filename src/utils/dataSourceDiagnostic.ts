@@ -9,25 +9,54 @@ const AREA_KEYWORDS: Record<string, string[]> = {
   'pedidos': ['cliente', 'client', 'customer', 'pedido', 'order', 'peca', 'piece', 'pagamento', 'payment', 'forma_pagamento'],
   'ordens-producao': ['ordem', 'work_order', 'op_', 'producao', 'production', 'data_prevista', 'planned_date', 'data_conclusao'],
   'faturamentos': [
-    'fatura',
-    'invoice',
-    'nf',
-    'nfe',
-    'nfse',
-    'nfce',
-    'cte',
-    'tipo_documento',
-    'tipoDocumento',
-    'nota_fiscal',
-    'frete',
-    'freight',
-    'imposto',
-    'tax',
-    'numero_nf',
+    'fatura', 'invoice', 'nf', 'nfe', 'nfse', 'nfce', 'cte',
+    'tipo_documento', 'tipoDocumento', 'nota_fiscal',
+    'frete', 'freight', 'imposto', 'tax', 'numero_nf',
   ],
   'movimentos-estoque': ['estoque', 'stock', 'inventory', 'movimento', 'movement', 'entrada', 'saida', 'saldo', 'balance', 'nivel_estoque'],
   'custo-real': ['custo_real', 'real_cost', 'margem_real', 'actual_margin', 'preco_venda', 'sale_price', 'alerta_margem'],
   'alertas': ['alerta', 'alert', 'severidade', 'severity', 'titulo', 'title', 'descricao', 'description', 'lido', 'read'],
+  /** Campos típicos SGBR / ERP BR de títulos a pagar (duplicatas/boletos). */
+  'contas-a-pagar': [
+    'dtvencimento', 'dt_vencimento', 'vencimento',
+    'dtemissao', 'dt_emissao',
+    'dtpagamento', 'dt_pagamento', 'dtpgto', 'dtpago',
+    'valortitulo', 'valor_titulo',
+    'valorpago', 'valor_pago',
+    'valorjuros', 'valor_juros',
+    'valordesconto', 'valor_desconto',
+    'codfornecedor', 'fornecedor', 'nomefornecedor',
+    'duplicata', 'boleto', 'portador',
+    'centrocusto', 'centro_custo',
+    'pagas', 'pagar', 'apagar',
+  ],
+  /** Títulos a receber (contraparte de contas a pagar). */
+  'contas-a-receber': [
+    'dtvencimento', 'dt_vencimento',
+    'dtrecebimento', 'dt_recebimento',
+    'valorrecebido', 'valor_recebido',
+    'codcliente', 'nomecliente',
+    'areceber', 'receber',
+  ],
+  /** Vendas analítico: caracteriza pela combinação de cliente+produto+quantidade. */
+  'vendas-analitico': [
+    'qtdevendida', 'qtde_vendida', 'quantidade_vendida',
+    'valorunit', 'valor_unit', 'valor_unitario',
+    'decprod', 'nomeprod', 'codprod',
+    'codvendedor', 'vendedor',
+    'statuspedido', 'status_pedido',
+    'datafec', 'dt_fec', 'data_faturamento',
+  ],
+  /** Notas fiscais SGBR — distinto de 'faturamentos' genérico. */
+  'notas-fiscais': [
+    'vendanfe', 'notasfiscais', 'nota_fiscal', 'numero_nfe',
+    'chavenfe', 'chave_nfe', 'serie_nfe',
+  ],
+  /** Produzido BI — quantidades / produto / período (nomes variam). */
+  'produzido-sgbr': [
+    'produzido', 'qtdeproduz', 'quantidade_produzida', 'qtdproduz', 'qtd_produz',
+    'producao', 'codprod', 'decprod', 'nomeprod', 'unidade', 'dt_', 'data',
+  ],
 }
 
 // ─── Palavras-chave para detectar campos de vendas (SGBR BI style) ──────────

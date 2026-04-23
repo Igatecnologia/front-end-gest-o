@@ -92,6 +92,15 @@ export type FinanceEntry = {
   category: 'Receita' | 'Custo Fixo' | 'Custo Variável' | 'Imposto'
   description: string
   amount: number
+  /** Custo da linha (SGBR analítico) — permite alinhar KPIs ao filtro de busca. */
+  linhaCusto?: number
+}
+
+/** Metadados do GET /api/proxy/data (paginação SGBR). */
+export type AnaliticoFetchMeta = {
+  truncated: boolean
+  pagesFetched: number
+  rowCount: number
 }
 
 export type FinanceOverview = {
@@ -100,6 +109,8 @@ export type FinanceOverview = {
   lucro: number
   margemPct: number
   linhasCount?: number
+  /** Presente quando os dados vêm do analítico SGBR via proxy. */
+  analiticoFetchMeta?: AnaliticoFetchMeta
   monthlyFlow: Array<{
     month: string
     receita: number
@@ -226,12 +237,14 @@ export type EstoqueMateriaPrima = {
   id: string; material: string; unidade: string; qtdeAtual: number; qtdeMinima: number
   custoUnitario: number; custoTotal: number; ultimaEntrada: string
   fornecedor: string; status: 'Normal' | 'Baixo' | 'Crítico'
+  detalhes?: Record<string, unknown>
 }
 
 export type EstoqueEspuma = {
   id: string; produto: string; tipo: TipoEspuma; densidade: string; unidade: string
   qtdeAtual: number; qtdeMinima: number; custoUnitario: number; custoTotal: number
   ultimaEntrada: string; status: 'Normal' | 'Baixo' | 'Crítico'
+  detalhes?: Record<string, unknown>
 }
 
 export type EstoqueProdutoFinal = {
@@ -239,6 +252,7 @@ export type EstoqueProdutoFinal = {
   dimensoes: string; unidade: string; qtdeAtual: number; qtdeMinima: number
   custoUnitario: number; custoTotal: number; precoVenda: number
   ultimaEntrada: string; status: 'Normal' | 'Baixo' | 'Crítico'
+  detalhes?: Record<string, unknown>
 }
 
 export type VendaEspuma = {

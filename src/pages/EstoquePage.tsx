@@ -70,7 +70,7 @@ export function EstoquePage() {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <PageHeaderCard
         title="Estoque"
-        subtitle="Posição de estoque: matéria-prima, produto base e produto final."
+        subtitle="Posição atual de estoque: matéria-prima e insumos, produtos base (espumas e aglomerados) e produto final."
       />
 
       <Card className="app-card no-hover" variant="borderless" style={{ padding: 0 }}>

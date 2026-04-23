@@ -1,3 +1,4 @@
+import { RangePickerBR } from '../components/DatePickerPtBR'
 import { Alert, Card, DatePicker, Segmented, Skeleton, Space, Tag } from 'antd'
 import dayjs from 'dayjs'
 import { useMemo } from 'react'
@@ -6,7 +7,11 @@ import { useQuery } from '@tanstack/react-query'
 import { Suspense, lazy } from 'react'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
+import { hasAnySources } from '../services/dataSourceService'
+import {
+  getVendasAnaliticoDataSourceLabel,
+  getVendasAnaliticoQuerySourceKey,
+} from '../services/vendasAnaliticoSourceSelection'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import { getErrorMessage } from '../api/httpError'
@@ -22,11 +27,11 @@ export function DashboardInsightsPage() {
   const period = (searchParams.get('p') ?? '90d') as '7d' | '30d' | '90d'
   const startDate = searchParams.get('start') ?? ''
   const endDate = searchParams.get('end') ?? ''
-  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
-  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
+  const sourceKey = getVendasAnaliticoQuerySourceKey()
+  const sourceLabel = getVendasAnaliticoDataSourceLabel()
 
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.dashboard({ period, start: startDate, end: endDate, sourceId }),
+    queryKey: queryKeys.dashboard({ period, start: startDate, end: endDate, sourceId: sourceKey }),
     queryFn: () => getDashboardData({ period, startDate: startDate || undefined, endDate: endDate || undefined }),
     staleTime: hasAnySources() ? ANALITICO_STALE_MS : undefined,
   })
@@ -75,7 +80,7 @@ export function DashboardInsightsPage() {
           </div>
           <div className="filter-item">
             <span>Intervalo personalizado</span>
-            <DatePicker.RangePicker
+            <RangePickerBR
               format="DD/MM/YYYY"
               placeholder={['Data inicial', 'Data final']}
               value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}

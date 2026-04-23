@@ -54,6 +54,7 @@ export const financeEntrySchema = z.object({
   category: z.enum(['Receita', 'Custo Fixo', 'Custo Variável', 'Imposto']),
   description: z.string().min(1),
   amount: z.number(),
+  linhaCusto: z.number().optional(),
 })
 
 export const financeOverviewSchema = z.object({
@@ -63,6 +64,13 @@ export const financeOverviewSchema = z.object({
   margemPct: z.number(),
   /** Presente quando a visão é montada a partir de `vendas/analitico` (contagem de linhas retornadas). */
   linhasCount: z.number().int().nonnegative().optional(),
+  analiticoFetchMeta: z
+    .object({
+      truncated: z.boolean(),
+      pagesFetched: z.number(),
+      rowCount: z.number(),
+    })
+    .optional(),
   monthlyFlow: z.array(
     z.object({
       month: z.string().min(1),
@@ -181,6 +189,8 @@ export const localLoginResponseSchema = z.object({
     name: z.string(),
     email: z.string(),
     role: z.enum(['admin', 'manager', 'viewer']),
+    /** Quando true, UI bloqueia todas as rotas e força troca de senha. */
+    mustChangePassword: z.boolean().optional(),
   }),
   permissions: z.array(z.string()).optional(),
 })
@@ -209,6 +219,16 @@ export const vendaAnaliticaRowSchema = z
   .passthrough()
 
 export const vendasAnaliticoResponseSchema = z.array(vendaAnaliticaRowSchema)
+
+/**
+ * Proxy SGBR (`vendas` ou `vendanfe`) — colunas variam por versão/cliente do BI.
+ * `Record<string, unknown>` é intencional: normalizamos via `mapSgbrVendasRows`
+ * antes do uso. Tipar aqui seria modelagem prematura e frágil.
+ */
+export const vendasAnaliticoRawResponseSchema = z.array(z.record(z.string(), z.unknown()))
+
+/** Proxy SGBR `notasfiscais/*` — idem acima; normalizar via `mapSgbrFaturamentosRows`. */
+export const notasFiscaisRawResponseSchema = z.array(z.record(z.string(), z.unknown()))
 
 export type VendaAnaliticaRow = z.infer<typeof vendaAnaliticaRowSchema>
 
@@ -239,6 +259,10 @@ export const contaPagarSchema = z.object({
 })
 export const contasPagarResponseSchema = z.array(contaPagarSchema)
 
+/** Linha bruta de `GET /sgbrbi/contas/pagas` (campos variam por versão do BI). */
+export const sgbrContasPagasRawRowSchema = z.object({}).passthrough()
+export const sgbrContasPagasRawResponseSchema = z.array(sgbrContasPagasRawRowSchema)
+
 export const contaReceberSchema = z.object({
   id: z.string().min(1),
   cliente: z.string().min(1),
@@ -262,6 +286,7 @@ export const estoqueMateriaPrimaSchema = z.object({
   ultimaEntrada: z.string().min(1),
   fornecedor: z.string().min(1),
   status: z.enum(['Normal', 'Baixo', 'Crítico']),
+  detalhes: z.record(z.string(), z.unknown()).optional(),
 })
 export const estoqueMateriaPrimaResponseSchema = z.array(estoqueMateriaPrimaSchema)
 
@@ -277,6 +302,7 @@ export const estoqueEspumaSchema = z.object({
   custoTotal: z.number(),
   ultimaEntrada: z.string().min(1),
   status: z.enum(['Normal', 'Baixo', 'Crítico']),
+  detalhes: z.record(z.string(), z.unknown()).optional(),
 })
 export const estoqueEspumaResponseSchema = z.array(estoqueEspumaSchema)
 
@@ -294,6 +320,7 @@ export const estoqueProdutoFinalSchema = z.object({
   precoVenda: z.number(),
   ultimaEntrada: z.string().min(1),
   status: z.enum(['Normal', 'Baixo', 'Crítico']),
+  detalhes: z.record(z.string(), z.unknown()).optional(),
 })
 export const estoqueProdutoFinalResponseSchema = z.array(estoqueProdutoFinalSchema)
 
@@ -475,6 +502,26 @@ export const alertaOperacionalSchema = z.object({
 })
 export const alertasOperacionaisResponseSchema = z.array(alertaOperacionalSchema)
 
+/* ═══════════════════════ Vendas SGBR (real) ═══════════════════════ */
+
+export const vendaSgbrSchema = z.object({
+  data: z.string(),
+  codProduto: z.number(),
+  produto: z.string(),
+  qtde: z.number(),
+  unidade: z.string(),
+  valorUnit: z.number(),
+  total: z.number(),
+  custoProduto: z.number(),
+  codCliente: z.number(),
+  cliente: z.string(),
+  codVendedor: z.number(),
+  vendedor: z.string(),
+  status: z.string(),
+})
+export const vendasSgbrResponseSchema = z.array(vendaSgbrSchema)
+export type VendaSgbr = z.infer<typeof vendaSgbrSchema>
+
 /* ═══════════════════════ Fontes de Dados (Data Source Connector) ═══════════════════════ */
 
 export const fieldMappingSchema = z.object({
@@ -491,6 +538,9 @@ export const dataSourceSchema = z.object({
   apiUrl: z.string().url(),
   authMethod: z.enum(['none', 'bearer_token', 'api_key', 'basic_auth']),
   authCredentialsMasked: z.string().nullable().optional(),
+  /** Login da API (SGBR) — devolvido pelo backend; senha nunca é enviada */
+  apiLogin: z.string().optional(),
+  hasApiPassword: z.boolean().optional(),
   status: z.enum(['connected', 'error', 'pending', 'disabled']),
   lastCheckedAt: z.string().nullable(),
   lastError: z.string().nullable(),
@@ -519,6 +569,10 @@ export const dataSourceTestResultSchema = z.object({
   latencyMs: z.number(),
   message: z.string(),
   sampleFields: z.array(z.string()).optional(),
+  /** Linhas na 1ª resposta do teste (pode ser só 1ª página). */
+  totalRows: z.number().optional(),
+  /** Total informado pela API na raiz do JSON, quando existir. */
+  apiReportedTotal: z.number().optional(),
 }).passthrough()
 
 export const dataSourceCreateSchema = z.object({

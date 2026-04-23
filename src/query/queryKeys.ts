@@ -22,7 +22,10 @@ export const queryKeys = {
     ['vendasAnalitico', params] as const,
 
   conciliacao: () => ['conciliacao'] as const,
-  contasPagar: () => ['contasPagar'] as const,
+  contasPagar: (params?: { dtDe: string; dtAte: string; sourceId?: string }) =>
+    params
+      ? (['contasPagar', 'sgbr', params.dtDe, params.dtAte, params.sourceId ?? 'default'] as const)
+      : (['contasPagar'] as const),
   contasReceber: () => ['contasReceber'] as const,
   estoqueMateriaPrima: () => ['estoqueMateriaPrima'] as const,
   estoqueEspuma: () => ['estoqueEspuma'] as const,
@@ -32,13 +35,21 @@ export const queryKeys = {
   /* ── ERP Sprint 8 ── */
   comprasMateriaPrima: () => ['comprasMateriaPrima'] as const,
   lotesProducao: () => ['lotesProducao'] as const,
+  produzidoSgbr: (params: { dtDe: string; dtAte: string; sourceId?: string }) =>
+    ['produzidoSgbr', 'sgbr', params.dtDe, params.dtAte, params.sourceId ?? 'default'] as const,
   fichasTecnicas: () => ['fichasTecnicas'] as const,
   pedidos: () => ['pedidos'] as const,
   ordensProducao: () => ['ordensProducao'] as const,
-  faturamentos: () => ['faturamentos'] as const,
+  /** Sem params: cache genérico (ex.: dashboard operacional). Com params: período + fonte na aba Notas fiscais. */
+  faturamentos: (params?: { dtDe: string; dtAte: string; sourceId?: string }) =>
+    params
+      ? (['faturamentos', 'sgbr', params.dtDe, params.dtAte, params.sourceId ?? 'default'] as const)
+      : (['faturamentos'] as const),
   movimentosEstoque: () => ['movimentosEstoque'] as const,
   custoRealProdutos: () => ['custoRealProdutos'] as const,
   alertasOperacionais: () => ['alertasOperacionais'] as const,
+  alerts: () => ['alerts'] as const,
+  userPreferences: () => ['userPreferences'] as const,
 
   /* ── Fontes de Dados ── */
   dataSources: () => ['dataSources'] as const,

@@ -53,6 +53,27 @@ export const ERP_STANDARD_FIELDS: Record<string, { label: string; fields: string
     label: 'Alertas Operacionais',
     fields: ['id', 'data', 'tipo', 'severidade', 'titulo', 'descricao', 'referenciaId', 'lido'],
   },
+  'contas-a-pagar': {
+    label: 'Contas a Pagar',
+    fields: ['id', 'fornecedor', 'documento', 'duplicata', 'dtEmissao', 'dtVencimento', 'dtPagamento', 'valorTitulo', 'valorPago', 'valorJuros', 'valorDesconto', 'portador', 'status', 'centroCusto'],
+  },
+  'contas-a-receber': {
+    label: 'Contas a Receber',
+    fields: ['id', 'cliente', 'documento', 'dtEmissao', 'dtVencimento', 'dtRecebimento', 'valorTitulo', 'valorRecebido', 'valorJuros', 'valorDesconto', 'portador', 'status', 'centroCusto'],
+  },
+  'vendas-analitico': {
+    label: 'Vendas Analítico',
+    fields: ['id', 'data', 'cliente', 'produto', 'quantidade', 'valorUnit', 'valorTotal', 'custoUnitario', 'status', 'vendedor'],
+  },
+  'notas-fiscais': {
+    label: 'Notas Fiscais',
+    fields: ['id', 'data', 'cliente', 'numeroNF', 'tipoDocumento', 'valorProdutos', 'valorFrete', 'valorImpostos', 'valorTotal', 'status'],
+  },
+  /** Relatório BI `GET /sgbrbi/produzido?dt_de=&dt_ate=` — colunas variam por cliente/versão. */
+  'produzido-sgbr': {
+    label: 'Produzido (SGBR BI)',
+    fields: ['id', 'data', 'produto', 'quantidade', 'unidade', 'codigo', 'observacao'],
+  },
 }
 
 export const ALL_ERP_ENDPOINTS = Object.keys(ERP_STANDARD_FIELDS)

@@ -3,6 +3,7 @@
  * Importar e usar em todos os graficos para consistencia visual.
  */
 import { formatBRL, formatCompact } from '../../utils/formatters'
+import { useReducedMotion } from '../../hooks/useReducedMotion'
 
 export { CHART_COLORS } from '../../theme/colors'
 
@@ -77,4 +78,15 @@ export const yAxisProps = {
   tickLine: false,
   width: 72,
 } as const
+
+export function useChartAnimationProps() {
+  const reduced = useReducedMotion()
+  return reduced
+    ? { isAnimationActive: false as const }
+    : {
+        isAnimationActive: true as const,
+        animationDuration: 600,
+        animationEasing: 'ease-out' as const,
+      }
+}
 /* eslint-enable react-refresh/only-export-components */

@@ -1,3 +1,4 @@
+import { RangePickerBR } from '../components/DatePickerPtBR'
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import {
   Alert,
@@ -260,7 +261,7 @@ export function AuditPage() {
           </div>
           <div className="filter-item">
             <span>Período</span>
-            <DatePicker.RangePicker
+            <RangePickerBR
               format="DD/MM/YYYY"
               placeholder={['Data inicial', 'Data final']}
               onChange={(vals) => {

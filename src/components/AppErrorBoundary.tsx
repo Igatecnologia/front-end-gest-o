@@ -9,6 +9,8 @@ type Props = {
 type State = {
   hasError: boolean
   errorId: string | null
+  errorMessage: string | null
+  errorStack: string | null
 }
 
 function generateErrorId(): string {
@@ -16,13 +18,20 @@ function generateErrorId(): string {
 }
 
 export class AppErrorBoundary extends React.Component<Props, State> {
-  state: State = { hasError: false, errorId: null }
+  state: State = { hasError: false, errorId: null, errorMessage: null, errorStack: null }
 
-  static getDerivedStateFromError() {
-    return { hasError: true, errorId: generateErrorId() }
+  static getDerivedStateFromError(error: Error) {
+    return {
+      hasError: true,
+      errorId: generateErrorId(),
+      errorMessage: error?.message ?? String(error),
+      errorStack: error?.stack ?? null,
+    }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[AppErrorBoundary] erro capturado:', error)
+    console.error('[AppErrorBoundary] componentStack:', errorInfo.componentStack)
     captureError(error, {
       component: 'AppErrorBoundary',
       extra: {
@@ -47,7 +56,7 @@ export class AppErrorBoundary extends React.Component<Props, State> {
         <Result
           status="500"
           title="Algo deu errado"
-          subTitle="Tente recarregar a página. Se o erro persistir, entre em contato com o suporte."
+          subTitle={this.state.errorMessage ?? 'Tente recarregar a página.'}
           extra={
             <>
               <Button type="primary" onClick={() => window.location.reload()}>
@@ -61,6 +70,28 @@ export class AppErrorBoundary extends React.Component<Props, State> {
                 >
                   Código do erro: {this.state.errorId}
                 </Typography.Text>
+              ) : null}
+              {this.state.errorStack ? (
+                <details style={{ marginTop: 16, textAlign: 'left', maxWidth: 720 }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 12, color: '#888' }}>
+                    Detalhes técnicos (clique para expandir)
+                  </summary>
+                  <pre
+                    style={{
+                      marginTop: 8,
+                      padding: 12,
+                      background: '#fafafa',
+                      border: '1px solid #eee',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      maxHeight: 300,
+                      overflow: 'auto',
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {this.state.errorStack}
+                  </pre>
+                </details>
               ) : null}
             </>
           }

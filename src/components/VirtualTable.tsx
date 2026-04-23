@@ -45,7 +45,7 @@ export function VirtualTable<T>({
             .join(' '),
           gap: 0,
           padding: '10px 12px',
-          borderBottom: '1px solid rgba(35, 40, 46, 0.65)',
+          borderBottom: '1px solid var(--qc-border)',
           position: 'sticky',
           top: 0,
           zIndex: 1,
@@ -117,7 +117,7 @@ export function VirtualTable<T>({
                   )
                   .join(' '),
                 padding: '10px 12px',
-                borderBottom: '1px solid rgba(35, 40, 46, 0.55)',
+                borderBottom: '1px solid color-mix(in srgb, var(--qc-border) 70%, transparent)',
                 alignItems: 'center',
               }}
             >

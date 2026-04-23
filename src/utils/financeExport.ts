@@ -1,6 +1,4 @@
 import dayjs from 'dayjs'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import { logExportAudit } from './auditExport'
 
 type ExportColumn = { header: string; key: string; format?: (v: unknown) => string }
@@ -18,38 +16,33 @@ function basename(reportName: string) {
 }
 
 /* ───────── Excel ───────── */
-function sanitizeCsvCell(value: unknown): string {
-  const raw = String(value ?? '')
-  const escaped = raw.replace(/"/g, '""')
-  return /^[=+\-@]/.test(escaped) ? `'${escaped}'` : escaped
-}
-
-export function exportExcel<T extends Record<string, unknown>>(
+export async function exportExcel<T extends Record<string, unknown>>(
   rows: T[],
   columns: ExportColumn[],
   sheetName: string,
   reportName: string,
 ) {
-  const csvRows = [
-    columns.map((col) => `"${sanitizeCsvCell(col.header)}"`).join(';'),
-    ...rows.map((row) =>
-      columns
-        .map((col) => {
-          const raw = row[col.key]
-          const value = col.format ? col.format(raw) : raw
-          return `"${sanitizeCsvCell(value)}"`
-        })
-        .join(';'),
-    ),
-  ]
-  const csv = `\uFEFF${csvRows.join('\n')}`
-  const blob = new Blob([csv], {
-    type: 'text/csv;charset=utf-8;',
+  const { Workbook } = await import('exceljs')
+  const workbook = new Workbook()
+  const worksheet = workbook.addWorksheet(sheetName)
+  worksheet.addRow(columns.map((col) => col.header))
+  for (const row of rows) {
+    worksheet.addRow(
+      columns.map((col) => {
+        const raw = row[col.key]
+        return col.format ? col.format(raw) : String(raw ?? '')
+      }),
+    )
+  }
+  worksheet.columns.forEach((col) => {
+    col.width = Math.min(42, Math.max(14, Number(col.header?.toString().length ?? 14) + 4))
   })
+  const bytes = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `${basename(reportName)}.csv`
+  link.download = `${basename(reportName)}.xlsx`
   link.click()
   URL.revokeObjectURL(url)
 
@@ -57,12 +50,16 @@ export function exportExcel<T extends Record<string, unknown>>(
 }
 
 /* ───────── PDF ───────── */
-export function exportPdf<T extends Record<string, unknown>>(
+export async function exportPdf<T extends Record<string, unknown>>(
   rows: T[],
   columns: ExportColumn[],
   title: string,
   reportName: string,
 ) {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ])
   const doc = new jsPDF({ orientation: 'landscape' })
   doc.setFontSize(14)
   doc.text(title, 14, 14)
@@ -143,6 +140,22 @@ export const estoqueEspumaCols: ExportColumn[] = [
   { header: 'Qtde Atual', key: 'qtdeAtual' },
   { header: 'Qtde Mínima', key: 'qtdeMinima' },
   { header: 'Custo Unit.', key: 'custoUnitario', format: (v) => formatBRL(v as number) },
+  { header: 'Custo Total', key: 'custoTotal', format: (v) => formatBRL(v as number) },
+  { header: 'Última Entrada', key: 'ultimaEntrada', format: (v) => formatDate(v as string) },
+  { header: 'Status', key: 'status' },
+]
+
+export const estoqueProdutoFinalCols: ExportColumn[] = [
+  { header: 'ID', key: 'id' },
+  { header: 'Produto', key: 'produto' },
+  { header: 'Tipo', key: 'tipo' },
+  { header: 'Densidade', key: 'densidade' },
+  { header: 'Dimensões', key: 'dimensoes' },
+  { header: 'Unidade', key: 'unidade' },
+  { header: 'Qtde Atual', key: 'qtdeAtual' },
+  { header: 'Qtde Mínima', key: 'qtdeMinima' },
+  { header: 'Custo Unit.', key: 'custoUnitario', format: (v) => formatBRL(v as number) },
+  { header: 'Preço Venda', key: 'precoVenda', format: (v) => formatBRL(v as number) },
   { header: 'Custo Total', key: 'custoTotal', format: (v) => formatBRL(v as number) },
   { header: 'Última Entrada', key: 'ultimaEntrada', format: (v) => formatDate(v as string) },
   { header: 'Status', key: 'status' },

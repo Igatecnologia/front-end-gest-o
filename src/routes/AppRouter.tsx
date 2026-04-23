@@ -1,9 +1,14 @@
 import { Spin } from 'antd'
 import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { AnimatePresence } from 'framer-motion'
+import { useAuth } from '../auth/AuthContext'
 import { AppLayout } from '../layouts/AppLayout'
+import { getAllowedRoutes, getUserUxPreferences } from '../navigation/uxPreferences'
 import { RequireAuth } from './RequireAuth'
 import { RequirePermission } from './RequirePermission'
+import { PageTransition } from '../components/PageTransition'
+import { PageErrorBoundary } from '../components/PageErrorBoundary'
 
 const GestaoExecutivaPage = lazy(() =>
   import('../pages/GestaoExecutivaPage').then((m) => ({ default: m.GestaoExecutivaPage })),
@@ -43,16 +48,14 @@ const ProducaoPage = lazy(() =>
 const FichaTecnicaPage = lazy(() =>
   import('../pages/FichaTecnicaPage').then((m) => ({ default: m.FichaTecnicaPage })),
 )
-const ComercialPage = lazy(() =>
-  import('../pages/ComercialPage').then((m) => ({ default: m.ComercialPage })),
+const NotasFiscaisPage = lazy(() =>
+  import('../pages/NotasFiscaisPage').then((m) => ({ default: m.NotasFiscaisPage })),
 )
 const EstoquePage = lazy(() =>
   import('../pages/EstoquePage').then((m) => ({ default: m.EstoquePage })),
 )
-const DashboardOperacionalPage = lazy(() =>
-  import('../pages/DashboardOperacionalPage').then((m) => ({
-    default: m.DashboardOperacionalPage,
-  })),
+const ComprasPage = lazy(() =>
+  import('../pages/ComprasPage').then((m) => ({ default: m.ComprasPage })),
 )
 const AlertasPage = lazy(() =>
   import('../pages/AlertasPage').then((m) => ({ default: m.AlertasPage })),
@@ -69,38 +72,54 @@ const SuporteTecnicoPage = lazy(() =>
 const FaleConoscoSuportePage = lazy(() =>
   import('../pages/FaleConoscoSuportePage').then((m) => ({ default: m.FaleConoscoSuportePage })),
 )
+const DesignTokensPage = lazy(() =>
+  import('../pages/DesignTokensPage').then((m) => ({ default: m.DesignTokensPage })),
+)
+
+function HomeRedirect() {
+  const { session } = useAuth()
+  const allowedPaths = new Set(getAllowedRoutes(session).map((item) => item.path))
+  const homePath = getUserUxPreferences(session).homePath
+  const fallback = allowedPaths.has('/gestao')
+    ? '/gestao'
+    : [...allowedPaths][0] ?? '/login'
+  const nextPath = homePath && allowedPaths.has(homePath) ? homePath : fallback
+  return <Navigate to={nextPath} replace />
+}
 
 export function AppRouter() {
   return (
-    <Suspense
-      fallback={
-        <div
-          style={{
-            minHeight: '100vh',
-            display: 'grid',
-            placeItems: 'center',
-            background: 'transparent',
-          }}
-        >
-          <Spin size="large" />
-        </div>
-      }
-    >
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          element={
-            <RequireAuth>
-              <AppLayout />
-            </RequireAuth>
+    <AnimatePresence mode="wait">
+      <PageTransition>
+        <Suspense
+          fallback={
+            <div
+              style={{
+                minHeight: '100vh',
+                display: 'grid',
+                placeItems: 'center',
+                background: 'transparent',
+              }}
+            >
+              <Spin size="large" />
+            </div>
           }
         >
-          <Route index element={<Navigate to="/gestao" replace />} />
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              element={
+                <RequireAuth>
+                  <AppLayout />
+                </RequireAuth>
+              }
+            >
+          <Route index element={<HomeRedirect />} />
           <Route
             path="/gestao"
             element={
               <RequirePermission permission="dashboard:view">
-                <GestaoExecutivaPage />
+                <PageErrorBoundary><GestaoExecutivaPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -108,7 +127,7 @@ export function AppRouter() {
             path="/dashboard"
             element={
               <RequirePermission permission="dashboard:view">
-                <DashboardPage />
+                <PageErrorBoundary><DashboardPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -116,7 +135,7 @@ export function AppRouter() {
             path="/dashboard/analises"
             element={
               <RequirePermission permission="dashboard:view">
-                <DashboardInsightsPage />
+                <PageErrorBoundary><DashboardInsightsPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -128,7 +147,7 @@ export function AppRouter() {
             path="/dashboard/vendas-analitico"
             element={
               <RequirePermission permission="dashboard:view">
-                <VendasAnaliticoPage />
+                <PageErrorBoundary><VendasAnaliticoPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -136,7 +155,7 @@ export function AppRouter() {
             path="/financeiro"
             element={
               <RequirePermission permission="reports:view">
-                <FinancePage />
+                <PageErrorBoundary><FinancePage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -144,7 +163,7 @@ export function AppRouter() {
             path="/relatorios"
             element={
               <RequirePermission permission="reports:view">
-                <ReportsPage />
+                <PageErrorBoundary><ReportsPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -152,7 +171,7 @@ export function AppRouter() {
             path="/usuarios"
             element={
               <RequirePermission permission="users:view">
-                <UsersPage />
+                <PageErrorBoundary><UsersPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -160,7 +179,7 @@ export function AppRouter() {
             path="/auditoria"
             element={
               <RequirePermission permission="audit:view">
-                <AuditPage />
+                <PageErrorBoundary><AuditPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -168,7 +187,7 @@ export function AppRouter() {
             path="/producao"
             element={
               <RequirePermission permission="producao:view">
-                <ProducaoPage />
+                <PageErrorBoundary><ProducaoPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -176,15 +195,23 @@ export function AppRouter() {
             path="/ficha-tecnica"
             element={
               <RequirePermission permission="fichatecnica:view">
-                <FichaTecnicaPage />
+                <PageErrorBoundary><FichaTecnicaPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
           <Route
-            path="/comercial"
+            path="/notas-fiscais"
             element={
               <RequirePermission permission="comercial:view">
-                <ComercialPage />
+                <PageErrorBoundary><NotasFiscaisPage /></PageErrorBoundary>
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/compras"
+            element={
+              <RequirePermission permission="producao:view">
+                <PageErrorBoundary><ComprasPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -192,32 +219,33 @@ export function AppRouter() {
             path="/estoque"
             element={
               <RequirePermission permission="estoque:view">
-                <EstoquePage />
+                <PageErrorBoundary><EstoquePage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
-          <Route
-            path="/operacional"
-            element={
-              <RequirePermission permission="dashboard:view">
-                <DashboardOperacionalPage />
-              </RequirePermission>
-            }
-          />
+          <Route path="/operacional" element={<Navigate to="/gestao" replace />} />
           <Route
             path="/alertas"
             element={
               <RequirePermission permission="alertas:view">
-                <AlertasPage />
+                <PageErrorBoundary><AlertasPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
           <Route path="/suporte/fale-conosco" element={<FaleConoscoSuportePage />} />
           <Route
+            path="/tokens"
+            element={
+              <RequirePermission permission="support:view">
+                <PageErrorBoundary><DesignTokensPage /></PageErrorBoundary>
+              </RequirePermission>
+            }
+          />
+          <Route
             path="/suporte"
             element={
               <RequirePermission permission="support:view">
-                <SuporteTecnicoPage />
+                <PageErrorBoundary><SuporteTecnicoPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -225,7 +253,7 @@ export function AppRouter() {
             path="/fontes-de-dados"
             element={
               <RequirePermission permission="datasources:view">
-                <DataSourceConfigPage />
+                <PageErrorBoundary><DataSourceConfigPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
@@ -233,13 +261,15 @@ export function AppRouter() {
             path="/admin/operacao"
             element={
               <RequirePermission permission="operations:view">
-                <OpsStatusPage />
+                <PageErrorBoundary><OpsStatusPage /></PageErrorBoundary>
               </RequirePermission>
             }
           />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
-    </Suspense>
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </Suspense>
+      </PageTransition>
+    </AnimatePresence>
   )
 }

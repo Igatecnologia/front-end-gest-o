@@ -1,3 +1,4 @@
+import { RangePickerBR } from '../components/DatePickerPtBR'
 import {
   DownloadOutlined,
   FileExcelOutlined,
@@ -27,12 +28,15 @@ import {
 import dayjs from 'dayjs'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, Tooltip, XAxis, YAxis } from 'recharts'
 import { gridProps, xAxisProps, yAxisProps, CHART_COLORS } from '../components/charts/ChartDefaults'
 import { ChartShell } from '../components/ChartShell'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
+import { hasAnySources } from '../services/dataSourceService'
+import {
+  getVendasAnaliticoDataSourceLabel,
+  getVendasAnaliticoQuerySourceKey,
+} from '../services/vendasAnaliticoSourceSelection'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { useAuth } from '../auth/AuthContext'
 import { hasPermission } from '../auth/permissions'
@@ -41,8 +45,10 @@ import { DevErrorDetail } from '../components/DevErrorDetail'
 import { queryKeys } from '../query/queryKeys'
 import { getVendasAnalitico } from '../services/vendasAnaliticoService'
 import { nowBr, parseVendaDate } from '../utils/dayjsBr'
+import { lineReceitaRow, sumReceitaAjustePedido } from '../utils/vendasAnaliticoAggregates'
 import { formatBRL, formatCompact } from '../utils/formatters'
 import { useTenant } from '../tenant/TenantContext'
+import { usePersistedSearchParams } from '../navigation/usePersistedSearchParams'
 
 const PT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
@@ -121,7 +127,10 @@ export function ReportsPage() {
   const { session } = useAuth()
   const tenant = useTenant()
   const canExport = hasPermission(session, 'reports:export')
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { searchParams, setSearchParams, resetPersistedState } = usePersistedSearchParams({
+    storageKey: 'reports.filters',
+    ttlMs: 1000 * 60 * 60 * 24 * 7,
+  })
   const chartRef = useRef<HTMLDivElement | null>(null)
 
   const { start: defStart, end: defEnd } = defaultRange()
@@ -131,12 +140,12 @@ export function ReportsPage() {
   const view = searchParams.get('view') ?? 'geral'
 
   const biConfigured = hasAnySources()
-  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
-  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
+  const sourceKey = getVendasAnaliticoQuerySourceKey()
+  const sourceLabel = getVendasAnaliticoDataSourceLabel()
 
   const query = useQuery({
-    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end, sourceId }),
-    queryFn: () => getVendasAnalitico({ dtDe: start, dtAte: end }),
+    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end, sourceId: sourceKey }),
+    queryFn: async () => (await getVendasAnalitico({ dtDe: start, dtAte: end })).rows,
     enabled: biConfigured,
     staleTime: ANALITICO_STALE_MS,
   })
@@ -146,7 +155,7 @@ export function ReportsPage() {
     const rows = query.data ?? []
     if (!rows.length) return null
 
-    const totalFaturamento = rows.reduce((s, r) => s + r.total, 0)
+    const totalFaturamento = sumReceitaAjustePedido(rows)
     const totalCusto = rows.reduce((s, r) => s + r.precocustoitem * r.qtdevendida, 0)
     const totalQtd = rows.reduce((s, r) => s + r.qtdevendida, 0)
     const margem = totalFaturamento > 0 ? ((totalFaturamento - totalCusto) / totalFaturamento) * 100 : 0
@@ -159,7 +168,7 @@ export function ReportsPage() {
     for (const r of rows) {
       const key = String(r.codprod)
       const cur = byProd.get(key) ?? { nome: r.decprod, total: 0, qtd: 0, custo: 0 }
-      cur.total += r.total
+      cur.total += lineReceitaRow(r)
       cur.qtd += r.qtdevendida
       cur.custo += r.precocustoitem * r.qtdevendida
       byProd.set(key, cur)
@@ -172,7 +181,7 @@ export function ReportsPage() {
     for (const r of rows) {
       const key = String(r.codcliente)
       const cur = byCli.get(key) ?? { nome: r.nomecliente, total: 0, count: 0, custo: 0 }
-      cur.total += r.total
+      cur.total += lineReceitaRow(r)
       cur.count++
       cur.custo += r.precocustoitem * r.qtdevendida
       byCli.set(key, cur)
@@ -186,7 +195,7 @@ export function ReportsPage() {
       const d = parseVendaDate(r.data)
       const key = `${d.year()}-${String(d.month() + 1).padStart(2, '0')}`
       const cur = byMonth.get(key) ?? { receita: 0, custo: 0, count: 0 }
-      cur.receita += r.total
+      cur.receita += lineReceitaRow(r)
       cur.custo += r.precocustoitem * r.qtdevendida
       cur.count++
       byMonth.set(key, cur)
@@ -427,7 +436,7 @@ export function ReportsPage() {
         <div className="filter-bar">
           <div className="filter-item">
             <span>Período</span>
-            <DatePicker.RangePicker
+            <RangePickerBR
               format="DD/MM/YYYY"
               value={[dayjs(start), dayjs(end)]}
               onChange={(vals) => {
@@ -477,6 +486,10 @@ export function ReportsPage() {
                 { value: 'clientes', label: 'Por cliente' },
               ]}
             />
+          </div>
+          <div className="filter-item">
+            <span>&nbsp;</span>
+            <Button onClick={resetPersistedState}>Limpar filtros salvos</Button>
           </div>
         </div>
       </Card>

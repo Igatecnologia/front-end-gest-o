@@ -5,7 +5,6 @@ import {
   CloudServerOutlined,
   CompassOutlined,
   CustomerServiceOutlined,
-  DashboardOutlined,
   DatabaseOutlined,
   DollarOutlined,
   DotChartOutlined,
@@ -14,21 +13,23 @@ import {
   FileTextOutlined,
   HomeOutlined,
   InboxOutlined,
+  StarOutlined,
   MenuOutlined,
-  MoonOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
   ProfileOutlined,
   ShoppingCartOutlined,
-  SunOutlined,
   TeamOutlined,
-  UserOutlined,
   PhoneOutlined,
 } from '@ant-design/icons'
+import { MoonStar, SunMedium, Search, UserCircle2 } from 'lucide-react'
 import {
   Button,
   Drawer,
   Dropdown,
   Layout,
   Menu,
+  Modal,
   Space,
   Tag,
   Tooltip,
@@ -36,48 +37,94 @@ import {
   theme,
 } from 'antd'
 import { Grid } from 'antd'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { ForcePasswordChangeModal } from '../auth/ForcePasswordChangeModal'
 import { hasPermission } from '../auth/permissions'
 import { useAppTheme } from '../theme/ThemeContext'
 import { useTenant } from '../tenant/TenantContext'
 import { getAppEnvBadge } from '../api/apiEnv'
+import {
+  getAllowedRoutes,
+  getWorkspaceDefinition,
+  getUserUxPreferences,
+} from '../navigation/uxPreferences'
+import { Logo } from '../assets/logo'
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
+import { AlertsBell } from '../components/AlertsBell'
+import { CommandPalette } from '../components/CommandPalette'
+import { CopilotDrawer } from '../components/CopilotDrawer'
+import { OpenTabsBar } from '../components/OpenTabsBar'
+import { useOpenTabs } from '../hooks/useOpenTabs'
+/**
+ * Picker de fonte de vendas foi removido — o sistema lê automaticamente TODAS as
+ * fontes compatíveis em paralelo. Ver `services/vendasAnaliticoSourceSelection.ts`.
+ */
 
 const { Header, Sider, Content } = Layout
 
+const pageTitlesByMenuKey: Record<string, string> = {
+  gestao: 'Visão do gestor',
+  dashboard: 'Dashboard',
+  relatorios: 'Relatórios',
+  financeiro: 'Financeiro',
+  usuarios: 'Funcionários',
+  auditoria: 'Auditoria',
+  'dashboard-analises': 'Análises BI',
+  'dashboard-vendas-analitico': 'Vendas',
+  producao: 'Produção',
+  'ficha-tecnica': 'Ficha Técnica',
+  'notas-fiscais': 'Notas Fiscais',
+  compras: 'Compras',
+  estoque: 'Estoque',
+  alertas: 'Alertas',
+  'fontes-de-dados': 'Fontes de dados',
+  'admin-operacao': 'Operação',
+  suporte: 'Área técnica',
+  'suporte-fale-conosco': 'Fale conosco',
+  tokens: 'Design Tokens',
+}
+
+function getTitleByMenuKey(menuKey: string) {
+  return pageTitlesByMenuKey[menuKey] ?? 'Dashboard'
+}
+
+function resolveMenuKeyFromPath(pathname: string): string {
+  if (pathname.startsWith('/gestao')) return 'gestao'
+  if (pathname.startsWith('/dashboard/analises')) return 'dashboard-analises'
+  if (pathname.startsWith('/dashboard/vendas-analitico')) return 'dashboard-vendas-analitico'
+  if (pathname.startsWith('/financeiro')) return 'financeiro'
+  if (pathname.startsWith('/relatorios')) return 'relatorios'
+  if (pathname.startsWith('/usuarios')) return 'usuarios'
+  if (pathname.startsWith('/auditoria')) return 'auditoria'
+  if (pathname.startsWith('/producao')) return 'producao'
+  if (pathname.startsWith('/ficha-tecnica')) return 'ficha-tecnica'
+  if (pathname.startsWith('/compras')) return 'compras'
+  if (pathname.startsWith('/notas-fiscais')) return 'notas-fiscais'
+  if (pathname.startsWith('/estoque')) return 'estoque'
+  if (pathname.startsWith('/alertas')) return 'alertas'
+  if (pathname.startsWith('/suporte/fale-conosco')) return 'suporte-fale-conosco'
+  if (pathname.startsWith('/tokens')) return 'tokens'
+  if (pathname.startsWith('/fontes-de-dados')) return 'fontes-de-dados'
+  if (pathname.startsWith('/admin/operacao')) return 'admin-operacao'
+  if (pathname.startsWith('/suporte')) return 'suporte'
+  return 'dashboard'
+}
+
 function useSelectedMenuKey(pathname: string) {
-  return useMemo(() => {
-    if (pathname.startsWith('/gestao')) return 'gestao'
-    if (pathname.startsWith('/dashboard/analises')) return 'dashboard-analises'
-    if (pathname.startsWith('/dashboard/vendas-analitico')) return 'dashboard-vendas-analitico'
-    if (pathname.startsWith('/financeiro')) return 'financeiro'
-    if (pathname.startsWith('/relatorios')) return 'relatorios'
-    if (pathname.startsWith('/usuarios')) return 'usuarios'
-    if (pathname.startsWith('/auditoria')) return 'auditoria'
-    if (pathname.startsWith('/producao')) return 'producao'
-    if (pathname.startsWith('/ficha-tecnica')) return 'ficha-tecnica'
-    if (pathname.startsWith('/comercial')) return 'comercial'
-    if (pathname.startsWith('/estoque')) return 'estoque'
-    if (pathname.startsWith('/operacional')) return 'operacional'
-    if (pathname.startsWith('/alertas')) return 'alertas'
-    if (pathname.startsWith('/suporte/fale-conosco')) return 'suporte-fale-conosco'
-    if (pathname.startsWith('/fontes-de-dados')) return 'fontes-de-dados'
-    if (pathname.startsWith('/admin/operacao')) return 'admin-operacao'
-    if (pathname.startsWith('/suporte')) return 'suporte'
-    return 'dashboard'
-  }, [pathname])
+  return useMemo(() => resolveMenuKeyFromPath(pathname), [pathname])
 }
 
 /** Detecta qual grupo do sidebar deve estar aberto baseado na rota */
 function useOpenSubMenuKeys(selectedKey: string) {
   return useMemo(() => {
-    if (selectedKey === 'gestao' || selectedKey.startsWith('dashboard') || selectedKey === 'operacional' || selectedKey === 'alertas') return ['sub-dashboard']
-    if (selectedKey === 'producao' || selectedKey === 'ficha-tecnica' || selectedKey === 'comercial' || selectedKey === 'estoque') return ['sub-erp']
+    if (selectedKey === 'gestao' || selectedKey.startsWith('dashboard') || selectedKey === 'alertas') return ['sub-dashboard']
+    if (selectedKey === 'producao' || selectedKey === 'ficha-tecnica' || selectedKey === 'compras' || selectedKey === 'notas-fiscais' || selectedKey === 'estoque') return ['sub-erp']
     if (selectedKey === 'financeiro' || selectedKey === 'relatorios') return ['sub-analytics']
     if (['usuarios', 'auditoria'].includes(selectedKey)) return ['sub-admin']
     if (
-      ['suporte', 'suporte-fale-conosco', 'fontes-de-dados', 'admin-operacao'].includes(selectedKey)
+      ['suporte', 'suporte-fale-conosco', 'tokens', 'fontes-de-dados', 'admin-operacao'].includes(selectedKey)
     ) {
       return ['sub-suporte']
     }
@@ -85,12 +132,26 @@ function useOpenSubMenuKeys(selectedKey: string) {
   }, [selectedKey])
 }
 
+/** Menu lateral: prefetch desabilitado — causava spike de queryFn e download de
+ *  chunks em hover, competindo com a página ativa. Chunks são carregados on-demand. */
+function SidebarLink({ to, children }: { to: string; children: React.ReactNode }) {
+  return <Link to={to}>{children}</Link>
+}
+
 export function AppLayout() {
   const location = useLocation()
   const selectedKey = useSelectedMenuKey(location.pathname)
   const defaultOpenKeys = useOpenSubMenuKeys(selectedKey)
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsedRaw] = useState(() => {
+    try { return localStorage.getItem('iga.sidebar.collapsed') === '1' } catch { return false }
+  })
+  const setCollapsed = useCallback((v: boolean) => {
+    setCollapsedRaw(v)
+    try { localStorage.setItem('iga.sidebar.collapsed', v ? '1' : '0') } catch { /* noop */ }
+  }, [])
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [copilotOpen, setCopilotOpen] = useState(false)
   const { mode, toggle } = useAppTheme()
   const { session, signOut } = useAuth()
   const { token } = theme.useToken()
@@ -98,6 +159,16 @@ export function AppLayout() {
   const navigate = useNavigate()
   const tenant = useTenant()
   const envBadge = useMemo(() => getAppEnvBadge(), [])
+  const allowedRoutes = useMemo(() => getAllowedRoutes(session), [session])
+  const navRouteMap = useMemo(
+    () => new Map(allowedRoutes.map((route) => [route.path, route])),
+    [allowedRoutes],
+  )
+  const uxPreferences = useMemo(() => getUserUxPreferences(session), [session])
+  const workspaceDefinition = useMemo(
+    () => getWorkspaceDefinition(uxPreferences.workspaceId),
+    [uxPreferences.workspaceId],
+  )
 
   /* ── Sub-menus colapsáveis ── */
   const navItems = useMemo(() => {
@@ -109,12 +180,11 @@ export function AppLayout() {
         icon: <BarChartOutlined />,
         label: 'Dashboard',
         children: [
-          { key: 'gestao', icon: <CompassOutlined />, label: <Link to="/gestao">Visão do gestor</Link> },
-          { key: 'dashboard', icon: <HomeOutlined />, label: <Link to="/dashboard">Visão geral</Link> },
-          { key: 'dashboard-analises', icon: <DotChartOutlined />, label: <Link to="/dashboard/analises">Análises BI</Link> },
-          { key: 'dashboard-vendas-analitico', icon: <ShoppingCartOutlined />, label: <Link to="/dashboard/vendas-analitico">Vendas</Link> },
-          { key: 'operacional', icon: <DashboardOutlined />, label: <Link to="/operacional">Operacional</Link> },
-          { key: 'alertas', icon: <AlertOutlined />, label: <Link to="/alertas">Alertas</Link> },
+          { key: 'gestao', icon: <CompassOutlined />, label: <SidebarLink to="/gestao">Visão do gestor</SidebarLink> },
+          { key: 'dashboard', icon: <HomeOutlined />, label: <SidebarLink to="/dashboard">Visão geral</SidebarLink> },
+          { key: 'dashboard-analises', icon: <DotChartOutlined />, label: <SidebarLink to="/dashboard/analises">Análises BI</SidebarLink> },
+          { key: 'dashboard-vendas-analitico', icon: <ShoppingCartOutlined />, label: <SidebarLink to="/dashboard/vendas-analitico">Vendas</SidebarLink> },
+          { key: 'alertas', icon: <AlertOutlined />, label: <SidebarLink to="/alertas">Alertas</SidebarLink> },
         ],
       })
     }
@@ -122,16 +192,19 @@ export function AppLayout() {
     {
       const erpChildren: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
       if (hasPermission(session, 'producao:view')) {
-        erpChildren.push({ key: 'producao', icon: <ExperimentOutlined />, label: <Link to="/producao">Produção</Link> })
+        erpChildren.push({ key: 'producao', icon: <ExperimentOutlined />, label: <SidebarLink to="/producao">Produção</SidebarLink> })
       }
       if (hasPermission(session, 'fichatecnica:view')) {
-        erpChildren.push({ key: 'ficha-tecnica', icon: <ProfileOutlined />, label: <Link to="/ficha-tecnica">Ficha Técnica</Link> })
+        erpChildren.push({ key: 'ficha-tecnica', icon: <ProfileOutlined />, label: <SidebarLink to="/ficha-tecnica">Ficha Técnica</SidebarLink> })
+      }
+      if (hasPermission(session, 'producao:view')) {
+        erpChildren.push({ key: 'compras', icon: <ShoppingCartOutlined />, label: <SidebarLink to="/compras">Compras</SidebarLink> })
       }
       if (hasPermission(session, 'comercial:view')) {
-        erpChildren.push({ key: 'comercial', icon: <ShoppingCartOutlined />, label: <Link to="/comercial">Comercial</Link> })
+        erpChildren.push({ key: 'notas-fiscais', icon: <FileTextOutlined />, label: <SidebarLink to="/notas-fiscais">Notas Fiscais</SidebarLink> })
       }
       if (hasPermission(session, 'estoque:view')) {
-        erpChildren.push({ key: 'estoque', icon: <InboxOutlined />, label: <Link to="/estoque">Estoque</Link> })
+        erpChildren.push({ key: 'estoque', icon: <InboxOutlined />, label: <SidebarLink to="/estoque">Estoque</SidebarLink> })
       }
       if (erpChildren.length) {
         items.push({
@@ -149,18 +222,18 @@ export function AppLayout() {
         icon: <DollarOutlined />,
         label: 'Financeiro',
         children: [
-          { key: 'financeiro', icon: <DollarOutlined />, label: <Link to="/financeiro">Visão Financeira</Link> },
-          { key: 'relatorios', icon: <FileTextOutlined />, label: <Link to="/relatorios">Relatórios</Link> },
+          { key: 'financeiro', icon: <DollarOutlined />, label: <SidebarLink to="/financeiro">Visão Financeira</SidebarLink> },
+          { key: 'relatorios', icon: <FileTextOutlined />, label: <SidebarLink to="/relatorios">Relatórios</SidebarLink> },
         ],
       })
     }
 
     const adminChildren: NonNullable<React.ComponentProps<typeof Menu>['items']> = []
     if (hasPermission(session, 'users:view')) {
-      adminChildren.push({ key: 'usuarios', icon: <TeamOutlined />, label: <Link to="/usuarios">Funcionários</Link> })
+      adminChildren.push({ key: 'usuarios', icon: <TeamOutlined />, label: <SidebarLink to="/usuarios">Funcionários</SidebarLink> })
     }
     if (hasPermission(session, 'audit:view')) {
-      adminChildren.push({ key: 'auditoria', icon: <FileSearchOutlined />, label: <Link to="/auditoria">Auditoria</Link> })
+      adminChildren.push({ key: 'auditoria', icon: <FileSearchOutlined />, label: <SidebarLink to="/auditoria">Auditoria</SidebarLink> })
     }
     if (adminChildren.length) {
       items.push({
@@ -176,28 +249,33 @@ export function AppLayout() {
         {
           key: 'suporte-fale-conosco',
           icon: <PhoneOutlined />,
-          label: <Link to="/suporte/fale-conosco">Fale conosco</Link>,
+          label: <SidebarLink to="/suporte/fale-conosco">Fale conosco</SidebarLink>,
         },
       ]
       if (hasPermission(session, 'support:view')) {
         suporteChildren.push({
           key: 'suporte',
           icon: <CustomerServiceOutlined />,
-          label: <Link to="/suporte">Área técnica</Link>,
+          label: <SidebarLink to="/suporte">Área técnica</SidebarLink>,
+        })
+        suporteChildren.push({
+          key: 'tokens',
+          icon: <StarOutlined />,
+          label: <SidebarLink to="/tokens">Design Tokens</SidebarLink>,
         })
       }
       if (hasPermission(session, 'datasources:view')) {
         suporteChildren.push({
           key: 'fontes-de-dados',
           icon: <DatabaseOutlined />,
-          label: <Link to="/fontes-de-dados">Fontes de dados</Link>,
+          label: <SidebarLink to="/fontes-de-dados">Fontes de dados</SidebarLink>,
         })
       }
       if (hasPermission(session, 'operations:view')) {
         suporteChildren.push({
           key: 'admin-operacao',
           icon: <CloudServerOutlined />,
-          label: <Link to="/admin/operacao">Operação</Link>,
+          label: <SidebarLink to="/admin/operacao">Operação</SidebarLink>,
         })
       }
       items.push({
@@ -211,24 +289,69 @@ export function AppLayout() {
     return items
   }, [session])
 
-  /* ── Bottom nav items (mobile) — apenas os principais ── */
-  const bottomNavItems = useMemo(() => {
-    const items: { key: string; icon: React.ReactNode; label: string; path: string }[] = []
-    if (hasPermission(session, 'dashboard:view')) {
-      items.push({ key: 'dashboard', icon: <BarChartOutlined />, label: 'Dashboard', path: '/dashboard' })
-    }
-    if (hasPermission(session, 'reports:view')) {
-      items.push({ key: 'financeiro', icon: <DollarOutlined />, label: 'Financeiro', path: '/financeiro' })
-      items.push({ key: 'relatorios', icon: <FileTextOutlined />, label: 'Relatórios', path: '/relatorios' })
-    }
-    return items
-  }, [session])
+  const currentPageTitle = useMemo(
+    () => getTitleByMenuKey(selectedKey),
+    [selectedKey],
+  )
 
-  /** Qual key do bottom nav está ativa */
-  const activeBottomKey = useMemo(() => {
-    if (selectedKey.startsWith('dashboard')) return 'dashboard'
-    return selectedKey
-  }, [selectedKey])
+  const getTabTitle = useMemo(
+    () => (path: string) => getTitleByMenuKey(resolveMenuKeyFromPath(path)),
+    [],
+  )
+  const { tabs, activePath, closeTab, closeOthers, closeAll } = useOpenTabs(getTabTitle)
+
+  function navigateToSafeHome() {
+    const preferred = uxPreferences.homePath
+    if (preferred && navRouteMap.has(preferred)) {
+      navigate(preferred)
+      return
+    }
+    const workspaceHome = workspaceDefinition.defaultHomePath
+    if (navRouteMap.has(workspaceHome)) {
+      navigate(workspaceHome)
+      return
+    }
+    navigate('/gestao')
+  }
+
+  const { shortcutsOpen, closeShortcuts } = useKeyboardShortcuts({
+    onOpenSearch: () => setCommandPaletteOpen(true),
+    onOpenCopilot: () => setCopilotOpen(true),
+    onCloseOverlays: () => {
+      setMobileNavOpen(false)
+      setCommandPaletteOpen(false)
+      setCopilotOpen(false)
+    },
+  })
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null
+      const isTypingTarget =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen(true)
+        return
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
+        event.preventDefault()
+        setCollapsed(!collapsed)
+        return
+      }
+      if (isTypingTarget) return
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'h') {
+        event.preventDefault()
+        navigateToSafeHome()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [navigate])
 
   return (
     <Layout className="app-shell" style={{ minHeight: '100vh' }}>
@@ -257,9 +380,11 @@ export function AppLayout() {
         <Sider
           className="app-sider-premium"
           breakpoint="lg"
-          collapsedWidth={72}
+          width={240}
+          collapsedWidth={64}
           collapsed={collapsed}
           onCollapse={setCollapsed}
+          trigger={null}
           style={{
             position: 'sticky',
             top: 0,
@@ -269,16 +394,16 @@ export function AppLayout() {
           <div className="app-sider-premium__sheen" aria-hidden />
           <div className="app-sider-premium__edge" aria-hidden />
           <div className="app-sider-brand app-sider-brand--premium">
-            <Space size={10} align="center">
+            <Space size={10} align="center" style={{ minWidth: 0, overflow: 'hidden', justifyContent: collapsed ? 'center' : 'flex-start', width: '100%' }}>
               {tenant.logoUrl ? (
                 <img
                   src={tenant.logoUrl}
                   alt={tenant.companyName}
                   className="app-sider-logo"
                 />
-              ) : null}
+              ) : <Logo size="md" animated variant={mode === 'dark' ? 'inverse' : 'color'} />}
               {!collapsed && (
-                <div style={{ lineHeight: 1.1 }}>
+                <div style={{ lineHeight: 1.1, minWidth: 0 }}>
                   <span className="app-sider-brand-name" style={{ color: token.colorText }}>
                     {tenant.companyName}
                   </span>
@@ -302,7 +427,7 @@ export function AppLayout() {
           <div className="app-sider-nav">
             <Menu
               className="app-sider-menu"
-              popupClassName="app-sider-menu-popup"
+              classNames={{ popup: 'app-sider-menu-popup' }}
               theme={mode === 'dark' ? 'dark' : 'light'}
               mode="inline"
               selectedKeys={[selectedKey]}
@@ -310,6 +435,20 @@ export function AppLayout() {
               items={navItems}
               style={{ background: 'transparent', borderInlineEnd: 0 }}
             />
+          </div>
+
+          {/* Toggle de colapso — rodapé do sidebar */}
+          <div className="app-sider-toggle">
+            <Tooltip title={collapsed ? 'Expandir menu (Ctrl+B)' : 'Recolher menu (Ctrl+B)'} placement="right">
+              <button
+                className="app-sider-toggle__btn"
+                aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+                onClick={() => setCollapsed(!collapsed)}
+              >
+                {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                {!collapsed && <span className="app-sider-toggle__label">Recolher</span>}
+              </button>
+            </Tooltip>
           </div>
         </Sider>
       ) : (
@@ -324,7 +463,7 @@ export function AppLayout() {
           <div className="app-sider-nav app-sider-nav--drawer">
             <Menu
               className="app-sider-menu"
-              popupClassName="app-sider-menu-popup"
+              classNames={{ popup: 'app-sider-menu-popup' }}
               theme={mode === 'dark' ? 'dark' : 'light'}
               mode="inline"
               selectedKeys={[selectedKey]}
@@ -345,7 +484,7 @@ export function AppLayout() {
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
             position: 'sticky',
             top: 0,
-            zIndex: 10,
+            zIndex: 100,
           }}
         >
           <div
@@ -361,26 +500,10 @@ export function AppLayout() {
           >
             <Space align="center" size={10}>
               <Typography.Title level={5} style={{ margin: 0 }}>
-                {{
-                  gestao: 'Visão do gestor',
-                  dashboard: 'Dashboard',
-                  relatorios: 'Relatórios',
-                  financeiro: 'Financeiro',
-                  usuarios: 'Funcionários',
-                  auditoria: 'Auditoria',
-                  'dashboard-analises': 'Análises BI',
-                  'dashboard-vendas-analitico': 'Vendas',
-                  producao: 'Produção',
-                  'ficha-tecnica': 'Ficha Técnica',
-                  comercial: 'Comercial',
-                  estoque: 'Estoque',
-                  operacional: 'Dashboard Operacional',
-                  alertas: 'Alertas',
-                  'fontes-de-dados': 'Fontes de dados',
-                  'admin-operacao': 'Operação',
-                  suporte: 'Área técnica',
-                  'suporte-fale-conosco': 'Fale conosco',
-                }[selectedKey] ?? 'Dashboard'}
+                <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+                  {workspaceDefinition.label} / {tenant.companyName}
+                </Typography.Text>
+                {currentPageTitle}
               </Typography.Title>
               {envBadge ? (
                 <Tag color={envBadge.color} style={{ margin: 0 }}>
@@ -389,6 +512,18 @@ export function AppLayout() {
               ) : null}
             </Space>
             <Space>
+              <Tooltip title="Busca rápida (Ctrl+K)">
+                <Button
+                  type="text"
+                  aria-label="Abrir busca rápida"
+                  icon={<Search size={18} />}
+                  onClick={() => setCommandPaletteOpen(true)}
+                />
+              </Tooltip>
+              <Button type="text" aria-label="Abrir copiloto" onClick={() => setCopilotOpen(true)}>
+                IA
+              </Button>
+              <AlertsBell />
               {screens.xs ? (
                 <Button
                   type="text"
@@ -401,7 +536,7 @@ export function AppLayout() {
                 <Button
                   type="text"
                   aria-label="Alternar tema"
-                  icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+                  icon={mode === 'dark' ? <SunMedium size={18} /> : <MoonStar size={18} />}
                   onClick={toggle}
                 />
               </Tooltip>
@@ -435,20 +570,37 @@ export function AppLayout() {
                   ],
                 }}
               >
-                <Button type="text" aria-label="Menu do usuário" icon={<UserOutlined />} />
+                <Button type="text" aria-label="Menu do usuário" icon={<UserCircle2 size={18} />} />
               </Dropdown>
             </Space>
           </div>
         </Header>
-
+        <OpenTabsBar
+          tabs={tabs}
+          activePath={activePath}
+          onClose={closeTab}
+          onCloseOthers={closeOthers}
+          onCloseAll={closeAll}
+        />
+        <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+        <CopilotDrawer open={copilotOpen} onClose={() => setCopilotOpen(false)} />
+        <Modal open={shortcutsOpen} onCancel={closeShortcuts} footer={null} title="Atalhos de teclado">
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Typography.Text><kbd>Ctrl/Cmd</kbd> + <kbd>K</kbd> abrir busca</Typography.Text>
+            <Typography.Text><kbd>Ctrl/Cmd</kbd> + <kbd>B</kbd> recolher/expandir menu</Typography.Text>
+            <Typography.Text><kbd>Ctrl/Cmd</kbd> + <kbd>/</kbd> abrir atalhos</Typography.Text>
+            <Typography.Text><kbd>g</kbd> + <kbd>d</kbd> ir para dashboard</Typography.Text>
+            <Typography.Text><kbd>g</kbd> + <kbd>v</kbd> ir para vendas</Typography.Text>
+            <Typography.Text><kbd>g</kbd> + <kbd>f</kbd> ir para financeiro</Typography.Text>
+            <Typography.Text><kbd>Esc</kbd> fechar modal/drawer</Typography.Text>
+          </Space>
+        </Modal>
         <Content
           id="main-content"
           role="main"
           style={{
             background: token.colorBgLayout,
             padding: 0,
-            /* Espaço para o bottom nav no mobile */
-            paddingBottom: screens.xs ? 64 : 0,
           }}
         >
           <div className="app-content">
@@ -458,33 +610,8 @@ export function AppLayout() {
           </div>
         </Content>
 
-        {/* ── Bottom Navigation Mobile ── */}
-        {screens.xs && bottomNavItems.length > 0 ? (
-          <nav className="app-bottom-nav" aria-label="Navegação principal mobile">
-            {bottomNavItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={`app-bottom-nav-item${activeBottomKey === item.key ? ' active' : ''}`}
-                onClick={() => navigate(item.path)}
-                aria-current={activeBottomKey === item.key ? 'page' : undefined}
-              >
-                <span className="app-bottom-nav-icon">{item.icon}</span>
-                <span className="app-bottom-nav-label">{item.label}</span>
-              </button>
-            ))}
-            <button
-              type="button"
-              className="app-bottom-nav-item"
-              onClick={() => setMobileNavOpen(true)}
-              aria-label="Mais opções"
-            >
-              <span className="app-bottom-nav-icon"><MenuOutlined /></span>
-              <span className="app-bottom-nav-label">Mais</span>
-            </button>
-          </nav>
-        ) : null}
       </Layout>
+      <ForcePasswordChangeModal />
     </Layout>
   )
 }

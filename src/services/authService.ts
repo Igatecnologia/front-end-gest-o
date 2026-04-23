@@ -1,5 +1,5 @@
 import type { AuthSession } from '../auth/authStorage'
-import { ALL_PERMISSIONS, defaultPermissionsForRole } from '../auth/permissions'
+import { defaultPermissionsForRole } from '../auth/permissions'
 import { postValidated } from '../api/validatedHttp'
 import { localLoginResponseSchema, sgbrUsuarioLoginResponseSchema } from '../api/schemas'
 import { http } from './http'
@@ -31,12 +31,17 @@ export async function signIn(input: SignInInput): Promise<AuthSession> {
       localLoginResponseSchema,
     )
 
-    const permissions =
-      data.permissions?.length > 0 ? data.permissions : resolvePermissionsByRole(data.user.role)
+    const permissions: AuthSession['permissions'] =
+      data.permissions && data.permissions.length > 0
+        ? data.permissions
+        : resolvePermissionsByRole(data.user.role)
 
     return {
       token: data.token,
-      user: data.user,
+      user: {
+        ...data.user,
+        mustChangePassword: data.user.mustChangePassword ?? false,
+      },
       permissions,
     }
   } catch (localErr) {

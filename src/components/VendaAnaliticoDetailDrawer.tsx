@@ -11,6 +11,7 @@ import dayjs from 'dayjs'
 import { useState } from 'react'
 import type { VendaAnaliticaRow } from '../api/schemas'
 import { formatBRL } from '../utils/formatters'
+import { lineReceitaRow } from '../utils/vendasAnaliticoAggregates'
 
 function statusLabel(code: string): { text: string; color: 'success' | 'warning' | 'error' | 'default' } {
   const c = code.trim().toUpperCase()
@@ -86,14 +87,14 @@ export function VendaAnaliticoDetailDrawer({ open, pedido, onClose }: Props) {
       const cur = map.get(key)
       if (cur) {
         cur.qtdTotal += item.qtdevendida
-        cur.totalLinha += item.total
+        cur.totalLinha += lineReceitaRow(item)
         cur.custoTotal += item.precocustoitem * item.qtdevendida
         cur.linhas++
       } else {
         map.set(key, {
           item,
           qtdTotal: item.qtdevendida,
-          totalLinha: item.total,
+          totalLinha: lineReceitaRow(item),
           custoTotal: item.precocustoitem * item.qtdevendida,
           linhas: 1,
         })

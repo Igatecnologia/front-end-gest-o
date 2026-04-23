@@ -1,5 +1,7 @@
 import { WarningOutlined } from '@ant-design/icons'
 import {
+  Alert,
+  Button,
   Card,
   Col,
   Descriptions,
@@ -15,6 +17,7 @@ import {
   Tooltip,
   Typography,
 } from 'antd'
+import { getErrorMessage } from '../api/httpError'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -48,10 +51,11 @@ export function FichaTecnicaPage() {
   const [drawerRow, setDrawerRow] = useState<FichaTecnica | null>(null)
 
   /* query */
-  const { data, isLoading } = useQuery({
+  const fichasQ = useQuery({
     queryKey: queryKeys.fichasTecnicas(),
     queryFn: getFichasTecnicas,
   })
+  const { data, isLoading, isError, error, refetch } = fichasQ
 
   const rows = useMemo(() => data ?? [], [data])
 
@@ -221,6 +225,18 @@ export function FichaTecnicaPage() {
       <div style={{ padding: 24 }}>
         <Skeleton active paragraph={{ rows: 12 }} />
       </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="Não foi possível carregar as fichas técnicas"
+        description={getErrorMessage(error, 'Tente novamente em instantes.')}
+        action={<Button size="small" onClick={() => void refetch()}>Tentar novamente</Button>}
+      />
     )
   }
 

@@ -44,7 +44,7 @@ export function captureError(error: unknown, context?: ErrorContext) {
     }
 
     // Fire-and-forget para não bloquear o usuário
-    void fetch('/api/v1/errors', {
+    void fetch('/api/v1/ops/client-error', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

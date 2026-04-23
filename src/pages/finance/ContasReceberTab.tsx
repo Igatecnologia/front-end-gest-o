@@ -1,4 +1,4 @@
-import { Button, Card, Col, Dropdown, Input, Row, Select, Space, Table, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Col, Dropdown, Input, Row, Select, Space, Table, Tag, Typography } from 'antd'
 import { DownloadOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -27,7 +27,7 @@ export function ContasReceberTab() {
   const [statusFilter, setStatusFilter] = useState<'all' | ContaReceber['status']>('all')
 
   const debouncedSearch = useDebouncedValue(search)
-  const { data: rows = [], isLoading } = useQuery({ queryKey: queryKeys.contasReceber(), queryFn: getContasReceber })
+  const { data: rows = [], isLoading, isError, error, refetch } = useQuery({ queryKey: queryKeys.contasReceber(), queryFn: getContasReceber })
 
   const filtered = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase()
@@ -66,6 +66,18 @@ export function ContasReceberTab() {
   ]
 
   if (isLoading) return <Card className="app-card" variant="borderless"><Skeleton active paragraph={{ rows: 10 }} /></Card>
+
+  if (isError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="Não foi possível carregar contas a receber"
+        description={error instanceof Error ? error.message : 'Tente novamente em instantes.'}
+        action={<Button size="small" onClick={() => refetch()}>Tentar de novo</Button>}
+      />
+    )
+  }
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>

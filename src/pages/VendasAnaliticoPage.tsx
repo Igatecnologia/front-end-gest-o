@@ -1,6 +1,8 @@
+import { RangePickerBR } from '../components/DatePickerPtBR'
 import {
   DollarOutlined,
   EyeOutlined,
+  InfoCircleOutlined,
   PercentageOutlined,
   PieChartOutlined,
   ShoppingCartOutlined,
@@ -21,16 +23,20 @@ import {
   Space,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd'
 import dayjs from 'dayjs'
 import { Suspense, lazy, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
 import { DevErrorDetail } from '../components/DevErrorDetail'
 import { VendaAnaliticoDetailDrawer } from '../components/VendaAnaliticoDetailDrawer'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
+import { hasAnySources } from '../services/dataSourceService'
+import {
+  getVendasAnaliticoDataSourceLabel,
+  getVendasAnaliticoQuerySourceKey,
+} from '../services/vendasAnaliticoSourceSelection'
 import { getErrorMessage } from '../api/httpError'
 import type { VendaAnaliticaRow } from '../api/schemas'
 import { PageHeaderCard } from '../components/PageHeaderCard'
@@ -38,6 +44,10 @@ import { queryKeys } from '../query/queryKeys'
 import { getVendasAnalitico } from '../services/vendasAnaliticoService'
 import { nowBr } from '../utils/dayjsBr'
 import { formatBRL, formatCompact } from '../utils/formatters'
+import { metricColors, marginColor } from '../theme/colors'
+import { receitaPedidoGrupo } from '../utils/vendasAnaliticoAggregates'
+import { usePersistedSearchParams } from '../navigation/usePersistedSearchParams'
+import { VendasAnaliticoSkeleton } from '../components/skeletons/VendasAnaliticoSkeleton'
 
 const CurvaAbcTab = lazy(() =>
   import('./vendas/CurvaAbcTab').then((m) => ({ default: m.CurvaAbcTab })),
@@ -84,7 +94,10 @@ function defaultRange(): { start: string; end: string } {
 }
 
 function PedidosContent() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { searchParams, setSearchParams, resetPersistedState } = usePersistedSearchParams({
+    storageKey: 'vendas.pedidos.filters',
+    ttlMs: 1000 * 60 * 60 * 24 * 7,
+  })
   const { start: defStart, end: defEnd } = defaultRange()
   const start = searchParams.get('start') ?? defStart
   const end = searchParams.get('end') ?? defEnd
@@ -92,14 +105,14 @@ function PedidosContent() {
   const statusFilter = searchParams.get('status') ?? 'all'
 
   const biConfigured = hasAnySources()
-  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
+  const sourceKey = getVendasAnaliticoQuerySourceKey()
   const [detailPedido, setDetailPedido] = useState<PedidoAgrupado | null>(null)
   const [page, setPage] = useState(1)
   const pageSize = 100
 
   const query = useQuery({
-    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end, sourceId }),
-    queryFn: () => getVendasAnalitico({ dtDe: start, dtAte: end }),
+    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end, sourceId: sourceKey }),
+    queryFn: async () => (await getVendasAnalitico({ dtDe: start, dtAte: end })).rows,
     enabled: biConfigured,
     staleTime: ANALITICO_STALE_MS,
   })
@@ -126,7 +139,7 @@ function PedidosContent() {
     const result: PedidoAgrupado[] = []
     for (const [key, itens] of map) {
       const first = itens[0]
-      const totalPedido = itens.reduce((s, r) => s + r.total, 0)
+      const totalPedido = receitaPedidoGrupo(itens)
       const totalCusto = itens.reduce((s, r) => s + r.precocustoitem * r.qtdevendida, 0)
       const totalQtd = itens.reduce((s, r) => s + r.qtdevendida, 0)
       /* Unidade mais frequente no pedido */
@@ -197,7 +210,11 @@ function PedidosContent() {
   }
 
   if (query.isLoading) {
-    return <Card className="app-card" variant="borderless"><Skeleton active paragraph={{ rows: 8 }} /></Card>
+    return (
+      <Card className="app-card no-hover" variant="borderless">
+        <VendasAnaliticoSkeleton />
+      </Card>
+    )
   }
 
   if (query.isError) {
@@ -234,7 +251,7 @@ function PedidosContent() {
           </div>
           <div className="filter-item">
             <span>Período</span>
-            <DatePicker.RangePicker
+            <RangePickerBR
               format="DD/MM/YYYY"
               value={[dayjs(start), dayjs(end)]}
               onChange={(vals) => {
@@ -273,16 +290,28 @@ function PedidosContent() {
               ]}
             />
           </div>
+          <div className="filter-item">
+            <span>&nbsp;</span>
+            <Button onClick={resetPersistedState}>Limpar filtros salvos</Button>
+          </div>
         </div>
       </Card>
 
       {/* ── KPIs ── */}
       <Row gutter={[12, 12]}>
         {[
-          { title: 'Faturamento', value: formatCompact(metrics.totalVendas), icon: <DollarOutlined />, color: '#10B981', sub: `${metrics.pedidos} pedidos` },
-          { title: 'Margem bruta', value: `${metrics.margemBruta.toFixed(1)}%`, icon: <PercentageOutlined />, color: metrics.margemBruta >= 30 ? '#10B981' : metrics.margemBruta >= 15 ? '#F59E0B' : '#F43F5E', sub: `Custo: ${formatCompact(metrics.totalCusto)}` },
-          { title: 'Ticket médio', value: formatBRL(metrics.ticketMedio), icon: <ShoppingCartOutlined />, color: '#3B82F6', sub: `${metrics.totalQtd.toLocaleString('pt-BR')} un vendidas` },
-          { title: 'Clientes', value: String(metrics.clientesUnicos), icon: <TeamOutlined />, color: '#8B5CF6', sub: `${metrics.totalProdutos} linhas de produto` },
+          {
+            title: 'Faturamento',
+            value: formatCompact(metrics.totalVendas),
+            icon: <DollarOutlined />,
+            color: metricColors.revenue,
+            sub: `${metrics.pedidos} pedidos`,
+            /** Ajuda a explicar divergências com o PDF "Listagem de pedido de venda", que agrupa por data do pedido. */
+            tooltip: 'Soma por pedido (DAV) usando `totalprodutos` quando disponível. O filtro de datas é aplicado pelo SGBR — tipicamente por data de fechamento (`datafec`). Por isso pode divergir do PDF, que agrupa por data do pedido. Todas as linhas entram na soma (sem filtro de status).',
+          },
+          { title: 'Margem bruta', value: `${metrics.margemBruta.toFixed(1)}%`, icon: <PercentageOutlined />, color: marginColor(metrics.margemBruta), sub: `Custo: ${formatCompact(metrics.totalCusto)}` },
+          { title: 'Ticket médio', value: formatBRL(metrics.ticketMedio), icon: <ShoppingCartOutlined />, color: metricColors.ticket, sub: `${metrics.totalQtd.toLocaleString('pt-BR')} un vendidas` },
+          { title: 'Clientes', value: String(metrics.clientesUnicos), icon: <TeamOutlined />, color: metricColors.clients, sub: `${metrics.totalProdutos} linhas de produto` },
         ].map((kpi) => (
           <Col xs={12} sm={6} key={kpi.title}>
             <div className="metric-card">
@@ -290,6 +319,11 @@ function PedidosContent() {
               <div className="metric-card__content">
                 <span className="metric-card__title" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {kpi.icon} {kpi.title}
+                  {kpi.tooltip && (
+                    <Tooltip title={kpi.tooltip} placement="top">
+                      <InfoCircleOutlined style={{ fontSize: 11, color: 'var(--qc-text-secondary, #888)', cursor: 'help' }} />
+                    </Tooltip>
+                  )}
                 </span>
                 <span className="metric-card__value">{kpi.value}</span>
                 <Typography.Text type="secondary" style={{ fontSize: 11 }}>{kpi.sub}</Typography.Text>
@@ -314,7 +348,13 @@ function PedidosContent() {
                       textAlign: ['Qtd total', 'Total R$', 'Margem'].includes(h) ? 'right' : h === 'Status' ? 'center' : 'left',
                       width: h === '' ? 44 : undefined,
                     }}>
-                      {h}
+                      {h === 'Data' ? (
+                        <Tooltip title="Data do lançamento do pedido. Quando há fechamento, exibimos também 'Fec: dd/mm/aa' — é o campo (datafec) que o SGBR usa para filtrar o período.">
+                          <span style={{ borderBottom: '1px dashed var(--qc-border)', cursor: 'help' }}>{h}</span>
+                        </Tooltip>
+                      ) : (
+                        h
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -419,9 +459,12 @@ function PedidosContent() {
 const tabFallback = <Skeleton active paragraph={{ rows: 8 }} style={{ padding: 24 }} />
 
 export function VendasAnaliticoPage() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { searchParams, setSearchParams } = usePersistedSearchParams({
+    storageKey: 'vendas.tabs',
+    ttlMs: 1000 * 60 * 60 * 24 * 14,
+  })
   const activeTab = searchParams.get('view') ?? 'pedidos'
-  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
+  const sourceLabel = getVendasAnaliticoDataSourceLabel()
 
   const handleTabChange = (key: string) => {
     setSearchParams((prev) => {

@@ -1,5 +1,6 @@
 import type { ConciliacaoRow, ContaPagar, ContaReceber, EstoqueMateriaPrima, EstoqueEspuma, EstoqueProdutoFinal, VendaEspuma } from '../types/models'
 import { getValidated } from '../api/validatedHttp'
+import { fetchContasPagasFromSgbr, hasContasPagasSgbrSource } from './contasPagasService'
 import {
   conciliacaoResponseSchema,
   contasPagarResponseSchema,
@@ -15,7 +16,10 @@ export async function getConciliacao(): Promise<ConciliacaoRow[]> {
   return getValidated(http, '/finance/conciliacao', conciliacaoResponseSchema) as Promise<ConciliacaoRow[]>
 }
 
-export async function getContasPagar(): Promise<ContaPagar[]> {
+export async function getContasPagar(params?: { dtDe: string; dtAte: string }): Promise<ContaPagar[]> {
+  if (hasContasPagasSgbrSource()) {
+    return fetchContasPagasFromSgbr(params)
+  }
   return getValidated(http, '/finance/contas-pagar', contasPagarResponseSchema) as Promise<ContaPagar[]>
 }
 

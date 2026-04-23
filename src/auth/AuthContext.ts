@@ -6,6 +6,8 @@ export type AuthContextValue = {
   isAuthenticated: boolean
   signIn: (input: { email: string; password: string }) => Promise<void>
   signOut: () => void
+  /** Aplica mutação na sessão atual (ex.: limpar `mustChangePassword` após troca). */
+  updateSession: (updater: (prev: AuthSession) => AuthSession) => void
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

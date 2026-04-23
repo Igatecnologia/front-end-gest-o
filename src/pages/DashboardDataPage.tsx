@@ -1,3 +1,4 @@
+import { RangePickerBR } from '../components/DatePickerPtBR'
 import { Alert, Card, Col, DatePicker, Empty, Input, Row, Select, Skeleton, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -7,7 +8,11 @@ import { useSearchParams } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { DatePresetRange } from '../components/DatePresetRange'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
+import { hasAnySources } from '../services/dataSourceService'
+import {
+  getVendasAnaliticoDataSourceLabel,
+  getVendasAnaliticoQuerySourceKey,
+} from '../services/vendasAnaliticoSourceSelection'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import type { DashboardData } from '../types/models'
@@ -31,12 +36,12 @@ export function DashboardDataPage() {
   const groupBy = (searchParams.get('g') ?? 'none') as 'none' | 'status' | 'month'
   const start = searchParams.get('start') ?? ''
   const end = searchParams.get('end') ?? ''
-  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
-  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
+  const sourceKey = getVendasAnaliticoQuerySourceKey()
+  const sourceLabel = getVendasAnaliticoDataSourceLabel()
   const [statusFilter, setStatusFilter] = useState<'all' | LatestRow['status']>('all')
 
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.dashboard({ period, sourceId }),
+    queryKey: queryKeys.dashboard({ period, sourceId: sourceKey }),
     queryFn: () => getDashboardData({ period }),
     staleTime: hasAnySources() ? ANALITICO_STALE_MS : undefined,
   })
@@ -148,7 +153,7 @@ export function DashboardDataPage() {
             />
           </Col>
           <Col xs={24} md={7}>
-            <DatePicker.RangePicker
+            <RangePickerBR
               style={{ width: '100%' }}
               format="DD/MM/YYYY"
               placeholder={['Data inicial', 'Data final']}

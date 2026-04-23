@@ -1,5 +1,5 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Form, Input, Space } from 'antd'
+import { Alert, Button, Card, Checkbox, Form, Input, Space } from 'antd'
 import { useEffect, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
@@ -8,10 +8,18 @@ import { useTenant } from '../tenant/TenantContext'
 import { sanitizeAppRedirectPath } from '../utils/sanitizeAppRedirectPath'
 import { checkLoginAllowed, recordLoginAttempt, getLoginAttemptsRemaining } from '../auth/loginThrottle'
 import { listDataSourcesFromApi } from '../services/dataSourceService'
+import {
+  getRememberPreference,
+  setRememberPreference,
+  getRememberedEmail,
+  setRememberedEmail,
+  setStoredSession,
+} from '../auth/authStorage'
 
 type LoginForm = {
   email: string
   password: string
+  remember: boolean
 }
 
 export function LoginPage() {
@@ -53,10 +61,19 @@ export function LoginPage() {
     }
     setLockoutMsg(null)
 
+    /** Persistência precisa ser definida ANTES do signIn — o `setStoredSession`
+     *  dentro do AuthProvider lê a preferência salva pra decidir o storage. */
+    setRememberPreference(values.remember)
+
     setSubmitting(true)
     setErrorMsg(null)
     try {
-      await signIn(values)
+      await signIn({ email: values.email, password: values.password })
+      /** Reaplica a sessão no storage correto (caso tenha mudado o checkbox antes do signIn). */
+      const sess = (await import('../auth/authStorage')).getStoredSession()
+      if (sess) setStoredSession(sess, values.remember)
+      if (values.remember) setRememberedEmail(values.email)
+      else setRememberedEmail('')
       recordLoginAttempt(true)
       navigate(from, { replace: true })
     } catch (err) {
@@ -108,7 +125,11 @@ export function LoginPage() {
           <Form<LoginForm>
             layout="vertical"
             onFinish={onFinish}
-            initialValues={{ email: '', password: '' }}
+            initialValues={{
+              email: getRememberedEmail(),
+              password: '',
+              remember: getRememberPreference(),
+            }}
             scrollToFirstError
           >
             {lockoutMsg ? (
@@ -150,6 +171,10 @@ export function LoginPage() {
                 autoComplete="current-password"
                 maxLength={128}
               />
+            </Form.Item>
+
+            <Form.Item name="remember" valuePropName="checked" style={{ marginBottom: 12 }}>
+              <Checkbox>Manter conectado neste computador</Checkbox>
             </Form.Item>
 
             <Space direction="vertical" size={8} style={{ width: '100%' }}>

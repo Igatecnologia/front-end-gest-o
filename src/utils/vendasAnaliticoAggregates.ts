@@ -4,6 +4,75 @@ import type { ReportItem } from '../types/models'
 import type { VendaAnaliticaRow } from '../api/schemas'
 import { formatTsBrDayMonth, nowBr, parseVendaDate } from './dayjsBr'
 
+/** Faturamento da linha: `total` do SGBR ou, se ausente/zerado, `valorunit × qtdevendida`. */
+export function lineReceitaRow(r: VendaAnaliticaRow): number {
+  const t = r.total
+  if (typeof t === 'number' && Number.isFinite(t) && Math.abs(t) > 1e-9) {
+    return Math.round(t * 100) / 100
+  }
+  const vu = r.valorunit * r.qtdevendida
+  if (typeof vu === 'number' && Number.isFinite(vu) && Math.abs(vu) > 1e-9) {
+    return Math.round(vu * 100) / 100
+  }
+  return 0
+}
+
+const PEDIDO_KEY_FIELDS = [
+  'numdav',
+  'numerodav',
+  'numero_dav',
+  'numpedido',
+  'num_pedido',
+  'codpedido',
+  'cod_pedido',
+  'nrpedido',
+  'pedido',
+  'dav',
+  'nr_dav',
+] as const
+
+/** Agrupa linhas do analítico pelo identificador de pedido/DAV quando o SGBr envia o campo. */
+export function pedidoGroupKey(r: VendaAnaliticaRow): string {
+  const raw = r as VendaAnaliticaRow & Record<string, unknown>
+  for (const c of PEDIDO_KEY_FIELDS) {
+    const v = raw[c]
+    if (v != null && String(v).trim() !== '') return `p:${String(v).trim()}`
+  }
+  return `l:${String(r.codcliente)}|${String(r.datafec || r.data)}|${String(r.codprod)}|${r.valorunit}`
+}
+
+function groupRowsByPedido(rows: VendaAnaliticaRow[]): VendaAnaliticaRow[][] {
+  const m = new Map<string, VendaAnaliticaRow[]>()
+  for (const r of rows) {
+    const k = pedidoGroupKey(r)
+    const arr = m.get(k) ?? []
+    arr.push(r)
+    m.set(k, arr)
+  }
+  return [...m.values()]
+}
+
+/**
+ * Receita do pedido no analítico: maior entre a soma das linhas e o maior `totalprodutos`
+ * do grupo (o SGBr costuma repetir o total de produtos do pedido em cada linha; o PDF usa o total do DAV).
+ */
+export function receitaPedidoGrupo(g: VendaAnaliticaRow[]): number {
+  const lineSum = g.reduce((s, r) => s + lineReceitaRow(r), 0)
+  let maxTot = 0
+  for (const r of g) {
+    const tp = r.totalprodutos
+    if (typeof tp === 'number' && Number.isFinite(tp) && tp > maxTot) maxTot = tp
+  }
+  return Math.round(Math.max(lineSum, maxTot) * 100) / 100
+}
+
+/** Soma de faturamento com ajuste por pedido (alinha melhor com relatório de pedidos / DAV do SGBr). */
+export function sumReceitaAjustePedido(rows: VendaAnaliticaRow[]): number {
+  return Math.round(
+    groupRowsByPedido(rows).reduce((s, g) => s + receitaPedidoGrupo(g), 0) * 100,
+  ) / 100
+}
+
 const PT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'] as const
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const
 
@@ -35,7 +104,7 @@ function resolveVendaDate(row: VendaAnaliticaRow) {
 
 /** Monta o objeto de dashboard consumido pelas páginas a partir das linhas da API SGBR. */
 export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): DashboardData {
-  const faturamento = rows.reduce((s, r) => s + r.total, 0)
+  const faturamento = sumReceitaAjustePedido(rows)
   const linhasVenda = rows.length
   const clientes = new Set(rows.map((r) => String(r.codcliente)))
 
@@ -53,14 +122,39 @@ export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): Dashboa
 
     const curD = byDayStart.get(dayStart) ?? { qtd: 0, valor: 0 }
     curD.qtd += r.qtdevendida
-    curD.valor += r.total
+    curD.valor += lineReceitaRow(r)
     byDayStart.set(dayStart, curD)
 
     const curM = byMonthYear.get(mKey) ?? { valor: 0 }
-    curM.valor += r.total
+    curM.valor += lineReceitaRow(r)
     byMonthYear.set(mKey, curM)
 
-    heatmap.set(hKey, (heatmap.get(hKey) ?? 0) + r.total)
+    heatmap.set(hKey, (heatmap.get(hKey) ?? 0) + lineReceitaRow(r))
+  }
+
+  for (const g of groupRowsByPedido(rows)) {
+    const lineSum = g.reduce((s, r) => s + lineReceitaRow(r), 0)
+    const tot = receitaPedidoGrupo(g)
+    const adj = tot - lineSum
+    if (Math.abs(adj) < 1e-6) continue
+    const anchor = g.reduce((a, b) =>
+      resolveVendaDate(a).valueOf() <= resolveVendaDate(b).valueOf() ? a : b,
+    )
+    const d = resolveVendaDate(anchor)
+    const dayStart = d.startOf('day').valueOf()
+    const mKey = `${d.year()}-${String(d.month() + 1).padStart(2, '0')}`
+    const wd = WEEKDAYS[d.day()] ?? 'Seg'
+    const hKey = `${wd}|${d.hour()}`
+
+    const curD = byDayStart.get(dayStart) ?? { qtd: 0, valor: 0 }
+    curD.valor += adj
+    byDayStart.set(dayStart, curD)
+
+    const curM = byMonthYear.get(mKey) ?? { valor: 0 }
+    curM.valor += adj
+    byMonthYear.set(mKey, curM)
+
+    heatmap.set(hKey, (heatmap.get(hKey) ?? 0) + adj)
   }
 
   const salesSorted = [...byDayStart.entries()].sort((a, b) => a[0] - b[0])
@@ -87,7 +181,7 @@ export function buildDashboardFromVendasRows(rows: VendaAnaliticaRow[]): Dashboa
     (a, b) => resolveVendaDate(b).valueOf() - resolveVendaDate(a).valueOf(),
   )
   const latest: DashboardData['latest'] = latestSorted.map((r, i) => {
-    const total = Math.round(r.total * 100) / 100
+    const total = lineReceitaRow(r)
     const custo = Math.round(r.precocustoitem * r.qtdevendida * 100) / 100
     return {
       id: `vd-${String(r.codcliente)}-${String(r.codprod)}-${i}-${resolveVendaDate(r).valueOf()}`,
@@ -145,12 +239,21 @@ export function financeRangeDefault(): { dtDe: string; dtAte: string } {
   return { dtDe: start.format('YYYY-MM-DD'), dtAte: end.format('YYYY-MM-DD') }
 }
 
+/**
+ * Range default otimizado: mês em curso (dia 1 até hoje). Reduz payload/paginação
+ * em 80-90% vs ranges multi-mês. Usado em telas com DatePicker — usuário amplia via UI.
+ */
+export function currentMonthRange(): { dtDe: string; dtAte: string } {
+  const end = nowBr()
+  const start = end.startOf('month')
+  return { dtDe: start.format('YYYY-MM-DD'), dtAte: end.format('YYYY-MM-DD') }
+}
+
 /** Visão financeira derivada de custo x preço das linhas analíticas. */
 export function buildFinanceFromVendasRows(rows: VendaAnaliticaRow[]): FinanceOverview {
-  let receita = 0
+  const receita = sumReceitaAjustePedido(rows)
   let custoCalculado = 0
   for (const r of rows) {
-    receita += r.total
     custoCalculado += r.precocustoitem * r.qtdevendida
   }
   const lucro = receita - custoCalculado
@@ -161,8 +264,23 @@ export function buildFinanceFromVendasRows(rows: VendaAnaliticaRow[]): FinanceOv
     const d = resolveVendaDate(r)
     const mKey = `${d.year()}-${String(d.month() + 1).padStart(2, '0')}`
     const cur = byMonthY.get(mKey) ?? { receita: 0, custos: 0 }
-    cur.receita += r.total
+    cur.receita += lineReceitaRow(r)
     cur.custos += r.precocustoitem * r.qtdevendida
+    byMonthY.set(mKey, cur)
+  }
+
+  for (const g of groupRowsByPedido(rows)) {
+    const lineSum = g.reduce((s, r) => s + lineReceitaRow(r), 0)
+    const tot = receitaPedidoGrupo(g)
+    const adj = tot - lineSum
+    if (Math.abs(adj) < 1e-6) continue
+    const anchor = g.reduce((a, b) =>
+      resolveVendaDate(a).valueOf() <= resolveVendaDate(b).valueOf() ? a : b,
+    )
+    const d = resolveVendaDate(anchor)
+    const mKey = `${d.year()}-${String(d.month() + 1).padStart(2, '0')}`
+    const cur = byMonthY.get(mKey) ?? { receita: 0, custos: 0 }
+    cur.receita += adj
     byMonthY.set(mKey, cur)
   }
 
@@ -187,7 +305,8 @@ export function buildFinanceFromVendasRows(rows: VendaAnaliticaRow[]): FinanceOv
       date: resolveVendaDate(r).format('YYYY-MM-DD'),
       category: 'Receita' as const,
       description: `${r.decprod.slice(0, 48)}${r.decprod.length > 48 ? '…' : ''}`,
-      amount: Math.round(r.total * 100) / 100,
+      amount: lineReceitaRow(r),
+      linhaCusto: Math.round(r.precocustoitem * r.qtdevendida * 100) / 100,
     }))
 
   return {
@@ -209,7 +328,7 @@ function isoNowDate() {
 export function buildReportItemsFromVendasRows(rows: VendaAnaliticaRow[]): ReportItem[] {
   if (!rows.length) return []
 
-  const receita = rows.reduce((s, r) => s + r.total, 0)
+  const receita = sumReceitaAjustePedido(rows)
   const custoTotal = rows.reduce((s, r) => s + r.precocustoitem * r.qtdevendida, 0)
   const lucro = receita - custoTotal
   const ticket = receita / rows.length
@@ -222,21 +341,21 @@ export function buildReportItemsFromVendasRows(rows: VendaAnaliticaRow[]): Repor
   for (const r of rows) {
     const pk = String(r.decprod).slice(0, 60)
     const cur = byProd.get(pk) ?? { total: 0, qtd: 0, custo: 0 }
-    cur.total += r.total
+    cur.total += lineReceitaRow(r)
     cur.qtd += r.qtdevendida
     cur.custo += r.precocustoitem * r.qtdevendida
     byProd.set(pk, cur)
 
     const ck = String(r.nomecliente).slice(0, 40)
     const cc = byCli.get(ck) ?? { total: 0, count: 0 }
-    cc.total += r.total
+    cc.total += lineReceitaRow(r)
     cc.count++
     byCli.set(ck, cc)
 
     const d = resolveVendaDate(r)
     const mk = `${d.year()}-${String(d.month() + 1).padStart(2, '0')}`
     const mc = byMonth.get(mk) ?? { total: 0, count: 0 }
-    mc.total += r.total
+    mc.total += lineReceitaRow(r)
     mc.count++
     byMonth.set(mk, mc)
   }

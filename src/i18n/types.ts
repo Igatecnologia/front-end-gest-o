@@ -1,4 +1,4 @@
-export type Locale = 'pt-BR' | 'en'
+export type Locale = 'pt-BR'
 
 export type TranslationKeys = {
   // Auth

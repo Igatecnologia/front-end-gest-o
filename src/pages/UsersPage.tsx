@@ -1,3 +1,4 @@
+import { RangePickerBR } from '../components/DatePickerPtBR'
 import {
   DeleteOutlined,
   EditOutlined,
@@ -316,7 +317,7 @@ export function UsersPage() {
             />
           </Col>
           <Col xs={24} md={7}>
-            <DatePicker.RangePicker
+            <RangePickerBR
               style={{ width: '100%' }}
               format="DD/MM/YYYY"
               placeholder={['Data inicial', 'Data final']}

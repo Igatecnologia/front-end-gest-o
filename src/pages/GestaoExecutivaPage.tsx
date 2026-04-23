@@ -90,13 +90,6 @@ const HUB_SECTIONS: { label: string; items: HubItem[] }[] = [
     label: 'Operação',
     items: [
       {
-        permission: 'dashboard:view',
-        title: 'Dashboard operacional',
-        description: 'Ritmo da operação e indicadores para o dia a dia da fábrica.',
-        path: '/operacional',
-        icon: <BarChartOutlined style={{ fontSize: 22 }} />,
-      },
-      {
         permission: 'alertas:view',
         title: 'Alertas',
         description: 'Exceções, gargalos e o que precisa de ação imediata.',

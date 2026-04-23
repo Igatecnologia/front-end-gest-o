@@ -1,5 +1,5 @@
 import { App } from 'antd'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AuthContext, type AuthContextValue } from './AuthContext'
 import { getStoredSession, setStoredSession, type AuthSession } from './authStorage'
 import { signIn as signInService } from '../services/authService'
@@ -17,6 +17,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(() =>
     typeof window !== 'undefined' ? getStoredSession() : null,
   )
+  const startupValidatedRef = useRef(false)
 
   const signOut = useCallback(async () => {
     // Tenta invalidar sessão no backend (fire-and-forget)
@@ -36,19 +37,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Validar sessão armazenada com o backend no startup
   useEffect(() => {
-    if (!session?.token) return
+    if (startupValidatedRef.current) return
+    startupValidatedRef.current = true
+    if (!session) return
     let cancelled = false
 
-    http.get('/health').catch(() => {
-      // Se o backend estiver indisponível, manter sessão (offline)
-    }).then(() => {
-      if (cancelled) return
-      // Se o backend respondeu mas a sessão pode ter expirado,
-      // a próxima chamada autenticada vai retornar 401 e o interceptor faz logout
-    })
+    http
+      .get('/api/v1/auth/me')
+      .then((response) => {
+        if (cancelled) return
+        const payload = response.data as {
+          user: AuthSession['user']
+          permissions: AuthSession['permissions']
+        }
+        setSession({
+          user: payload.user,
+          permissions: payload.permissions,
+        })
+      })
+      .catch(() => {
+        if (cancelled) return
+        signOut()
+      })
 
     return () => { cancelled = true }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session, signOut])
 
   // Auto-logout por inatividade
   useSessionTimeout(
@@ -73,24 +86,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback<AuthContextValue['signIn']>(
     async (input) => {
       const next = await signInService(input)
-      setSession(next)
-      setStoredSession(next)
+      try {
+        const me = await http.get('/api/v1/auth/me')
+        const payload = me.data as {
+          user: AuthSession['user']
+          permissions: AuthSession['permissions']
+        }
+        const normalized: AuthSession = { user: payload.user, permissions: payload.permissions }
+        setSession(normalized)
+        setStoredSession(normalized)
+      } catch {
+        // Fallback para modo legado/externo (ex.: proxy login específico)
+        setSession(next)
+        setStoredSession(next)
+      }
       notification.success({
         message: 'Bem-vindo',
         description: next.user.name,
       })
     },
-    [notification],
+    [notification, setSession],
   )
+
+  const updateSession = useCallback<AuthContextValue['updateSession']>((updater) => {
+    setSession((prev) => {
+      if (!prev) return prev
+      const next = updater(prev)
+      setStoredSession(next)
+      return next
+    })
+  }, [])
 
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
-      isAuthenticated: !!session?.token,
+      isAuthenticated: !!session,
       signIn,
       signOut,
+      updateSession,
     }),
-    [session, signIn, signOut],
+    [session, signIn, signOut, updateSession],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

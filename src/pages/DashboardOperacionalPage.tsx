@@ -1,7 +1,11 @@
+import { RangePickerBR } from '../components/DatePickerPtBR'
 import {
-  Badge,
+  Alert,
+  Button,
   Card,
   Col,
+  DatePicker,
+  Empty,
   Progress,
   Row,
   Skeleton,
@@ -10,21 +14,27 @@ import {
   Tag,
   Typography,
 } from 'antd'
+import { getErrorMessage } from '../api/httpError'
 import type { ColumnsType } from 'antd/es/table'
-import { AlertOutlined, WarningOutlined } from '@ant-design/icons'
+import { InfoCircleOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import dayjs, { type Dayjs } from 'dayjs'
 import { MetricCard } from '../components/MetricCard'
+import { useSortableWidgets } from '../hooks/useSortableWidgets'
 import { queryKeys } from '../query/queryKeys'
 import {
   getLotesProducao,
   getPedidos,
   getOrdensProducao,
   getFaturamentos,
+  getDefaultFaturamentoDateRange,
   getCustoRealProdutos,
-  getAlertasOperacionais,
   getMovimentosEstoque,
 } from '../services/erpService'
+import { getNotasFiscaisDataSource } from '../services/dataSourceService'
+import { getProduzidoSgbr, hasProduzidoSgbrSourceConfigured } from '../services/produzidoService'
 import type {
   CustoRealProduto,
   MovimentoEstoque,
@@ -101,66 +111,119 @@ type ConciliacaoRow = {
 /* ══════════════════════════════════════════════ */
 
 export function DashboardOperacionalPage() {
+  const nfSource = getNotasFiscaisDataSource()
+  const defaultFatRange = useMemo(() => getDefaultFaturamentoDateRange(), [])
+  const [fatRange, setFatRange] = useState(defaultFatRange)
+  const rangeValue = useMemo<[Dayjs, Dayjs]>(() => [dayjs(fatRange.dtDe), dayjs(fatRange.dtAte)], [fatRange])
+  const { widgetLayout, SortableWrap, WidgetWrapper } = useSortableWidgets(
+    'operacional',
+    ['faturamento', 'produzidoSgbr', 'producao', 'custo', 'pedidosAberto', 'opsAndamento', 'margem'],
+  )
+
+  const produzidoEnabled = hasProduzidoSgbrSourceConfigured()
+
+  const onRangeChange = (next: null | [Dayjs | null, Dayjs | null]) => {
+    if (!next?.[0] || !next?.[1]) return
+    setFatRange({
+      dtDe: next[0].format('YYYY-MM-DD'),
+      dtAte: next[1].format('YYYY-MM-DD'),
+    })
+  }
+
   /* ── Queries ── */
 
   const lotesQ = useQuery({
     queryKey: queryKeys.lotesProducao(),
     queryFn: getLotesProducao,
-    staleTime: 30_000,
+    staleTime: 1000 * 60 * 10,
   })
 
   const pedidosQ = useQuery({
     queryKey: queryKeys.pedidos(),
     queryFn: getPedidos,
-    staleTime: 30_000,
+    staleTime: 1000 * 60 * 10,
   })
 
   const ordensQ = useQuery({
     queryKey: queryKeys.ordensProducao(),
     queryFn: getOrdensProducao,
-    staleTime: 30_000,
+    staleTime: 1000 * 60 * 10,
   })
 
   const fatQ = useQuery({
-    queryKey: queryKeys.faturamentos(),
-    queryFn: getFaturamentos,
-    staleTime: 30_000,
+    queryKey: nfSource
+      ? queryKeys.faturamentos({ ...fatRange, sourceId: nfSource.id })
+      : queryKeys.faturamentos(),
+    queryFn: () => getFaturamentos(nfSource ? fatRange : undefined),
+    staleTime: 1000 * 60 * 10,
   })
 
   const custoQ = useQuery({
     queryKey: queryKeys.custoRealProdutos(),
     queryFn: getCustoRealProdutos,
-    staleTime: 30_000,
-  })
-
-  const alertasQ = useQuery({
-    queryKey: queryKeys.alertasOperacionais(),
-    queryFn: getAlertasOperacionais,
-    staleTime: 30_000,
+    staleTime: 1000 * 60 * 10,
   })
 
   const movQ = useQuery({
     queryKey: queryKeys.movimentosEstoque(),
     queryFn: getMovimentosEstoque,
-    staleTime: 30_000,
+    staleTime: 1000 * 60 * 10,
   })
 
-  const loading =
-    lotesQ.isLoading ||
-    pedidosQ.isLoading ||
-    ordensQ.isLoading ||
-    fatQ.isLoading ||
-    custoQ.isLoading ||
-    alertasQ.isLoading ||
-    movQ.isLoading
+  const produzidoQ = useQuery({
+    queryKey: ['produzidoSgbr', 'operacional', fatRange.dtDe, fatRange.dtAte] as const,
+    queryFn: () => getProduzidoSgbr(fatRange),
+    enabled: produzidoEnabled,
+    staleTime: 1000 * 60 * 10,
+  })
+
+  const coreQueries = [lotesQ, pedidosQ, ordensQ, fatQ, custoQ, movQ] as const
+
+  // Não bloqueia a tela pelo "Produzido (SGBR)" para evitar sensação de
+  // dashboard travado quando esse endpoint está lento/instável.
+  const loading = coreQueries.some((q) => q.isLoading)
+
+  const allCoreFailed = coreQueries.every((q) => q.isError)
+  const firstError =
+    lotesQ.error ?? pedidosQ.error ?? ordensQ.error ?? fatQ.error ??
+    custoQ.error ?? movQ.error
+
+  const partialErrors: string[] = []
+  if (lotesQ.isError) partialErrors.push('lotes de produção')
+  if (pedidosQ.isError) partialErrors.push('pedidos')
+  if (ordensQ.isError) partialErrors.push('ordens de produção')
+  if (fatQ.isError) partialErrors.push('faturamento')
+  if (custoQ.isError) partialErrors.push('custo real')
+  if (movQ.isError) partialErrors.push('movimentos de estoque')
+  if (produzidoEnabled && produzidoQ.isError) partialErrors.push('produzido (SGBR)')
+  const refetchAll = () => {
+    void lotesQ.refetch()
+    void pedidosQ.refetch()
+    void ordensQ.refetch()
+    void fatQ.refetch()
+    void custoQ.refetch()
+    void movQ.refetch()
+    if (produzidoEnabled) void produzidoQ.refetch()
+  }
+
+  const produzidoRegCount = useMemo(() => {
+    if (!produzidoQ.data) return 0
+    return produzidoQ.data.meta.rowCount ?? produzidoQ.data.rows.length
+  }, [produzidoQ.data])
 
   const lotes = useMemo(() => lotesQ.data ?? [], [lotesQ.data])
   const pedidos = useMemo(() => pedidosQ.data ?? [], [pedidosQ.data])
   const ordens = useMemo(() => ordensQ.data ?? [], [ordensQ.data])
   const faturamentos = useMemo(() => fatQ.data ?? [], [fatQ.data])
   const custoReal = useMemo(() => custoQ.data ?? [], [custoQ.data])
-  const alertas = useMemo(() => alertasQ.data ?? [], [alertasQ.data])
   const movimentos = useMemo(() => movQ.data ?? [], [movQ.data])
+  const hasLotesData = lotes.length > 0
+  const hasPedidosData = pedidos.length > 0
+  const hasOrdensData = ordens.length > 0
+  const hasFaturamentoData = faturamentos.length > 0
+  const hasCustoData = custoReal.length > 0
+  const hasMovimentosData = movimentos.length > 0
+  const hasProduzidoData = produzidoEnabled && produzidoRegCount > 0
 
   /* ── KPIs ── */
 
@@ -202,13 +265,6 @@ export function DashboardOperacionalPage() {
     if (!custoReal.length) return 0
     return custoReal.reduce((s, c) => s + c.margemRealPct, 0) / custoReal.length
   }, [custoReal])
-
-  /* ── Alertas não lidos ── */
-
-  const alertasNaoLidos = useMemo(
-    () => alertas.filter((a) => !a.lido).slice(0, 3),
-    [alertas],
-  )
 
   /* ── Produção por Densidade ── */
 
@@ -415,6 +471,13 @@ export function DashboardOperacionalPage() {
     { title: 'Unidade', dataIndex: 'unidade', key: 'unidade', align: 'center' },
   ]
 
+  const emptyTable = (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description="Sem dados no período ou cadastros ainda vazios."
+    />
+  )
+
   const conciliacaoCols: ColumnsType<ConciliacaoRow> = [
     { title: 'Pedido', dataIndex: 'pedidoId', key: 'ped' },
     { title: 'Cliente', dataIndex: 'cliente', key: 'cli' },
@@ -463,7 +526,7 @@ export function DashboardOperacionalPage() {
     return (
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Row gutter={[16, 16]}>
-          {[1, 2, 3, 4, 5, 6].map((k) => (
+          {[1, 2, 3, 4, 5, 6, 7].map((k) => (
             <Col key={k} xs={24} sm={12} lg={8} xl={4}>
               <Card>
                 <Skeleton active paragraph={{ rows: 1 }} />
@@ -484,134 +547,246 @@ export function DashboardOperacionalPage() {
     )
   }
 
+  if (allCoreFailed) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="Não foi possível carregar o dashboard operacional"
+        description={getErrorMessage(firstError, 'Tente novamente em instantes.')}
+        action={
+          <Button size="small" onClick={refetchAll}>
+            Tentar novamente
+          </Button>
+        }
+      />
+    )
+  }
+
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      {/* ── Row 1: Alertas Ativos ── */}
-      {alertasNaoLidos.length > 0 && (
+      <Card className="app-card" variant="borderless">
+        <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+          <Space direction="vertical" size={4}>
+            <Typography.Title level={3} style={{ margin: 0 }}>
+              Dashboard Operacional
+            </Typography.Title>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0, maxWidth: 720 }}>
+              Produção, pedidos, faturamento, estoque e conciliação em um só lugar.
+              {nfSource ? (
+                <>
+                  {' '}
+                  Faturamento NF: período {fatRange.dtDe} — {fatRange.dtAte}.
+                </>
+              ) : (
+                <>
+                  {' '}
+                  <InfoCircleOutlined /> Faturamento usa dados locais até cadastrar fonte de notas fiscais.
+                </>
+              )}
+            </Typography.Paragraph>
+            <Space size="middle" wrap style={{ marginTop: 4 }}>
+              <Link to="/fontes-de-dados">Fontes de dados</Link>
+              <Typography.Text type="secondary">·</Typography.Text>
+              <Link to="/producao">Produção</Link>
+              <Typography.Text type="secondary">·</Typography.Text>
+              <Link to="/comercial">Comercial</Link>
+            </Space>
+            <Space size={8} wrap>
+              <Typography.Text type="secondary">Período (Faturamento/Produzido):</Typography.Text>
+              <RangePickerBR
+                value={rangeValue}
+                format="DD/MM/YYYY"
+                allowClear={false}
+                onChange={(dates) => onRangeChange(dates as [Dayjs | null, Dayjs | null] | null)}
+              />
+            </Space>
+          </Space>
+          <Button type="primary" icon={<ReloadOutlined />} onClick={refetchAll}>
+            Atualizar
+          </Button>
+        </Space>
+      </Card>
+
+      {partialErrors.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Alguns blocos não carregaram"
+          description={`Não foi possível obter: ${partialErrors.join(', ')}. O restante do painel está disponível.`}
+          action={
+            <Button size="small" onClick={refetchAll}>
+              Tentar novamente
+            </Button>
+          }
+        />
+      )}
+
+      {(() => {
+        const hiddenModules: string[] = []
+        if (!hasLotesData) hiddenModules.push('produção por lotes')
+        if (!hasPedidosData) hiddenModules.push('pedidos')
+        if (!hasOrdensData) hiddenModules.push('ordens de produção')
+        if (!hasCustoData) hiddenModules.push('custos reais')
+        if (!hasMovimentosData) hiddenModules.push('estoque por movimentos')
+        if (!hasProduzidoData) hiddenModules.push('produzido SGBR')
+        if (hiddenModules.length === 0) return null
+        return (
+          <Alert
+            type="info"
+            showIcon
+            message="Blocos ocultados automaticamente"
+            description={`Sem dados reais/integracão ativa para: ${hiddenModules.join(', ')}.`}
+          />
+        )
+      })()}
+
+      {/* ── Row 2: KPIs Principais (arrastável — use o handle no canto superior esquerdo) ── */}
+      {(() => {
+        const produzidoWidget = !produzidoEnabled ? (
+          <MetricCard
+            title="Produzido (SGBR)"
+            value="—"
+            description="Cadastre uma fonte com endpoint /sgbrbi/produzido em Fontes de dados para ver registros do BI."
+          />
+        ) : produzidoQ.isError ? (
+          <MetricCard
+            title="Produzido (SGBR)"
+            value="Erro"
+            description={getErrorMessage(produzidoQ.error, 'Falha ao consultar o relatório Produzido.')}
+          />
+        ) : (
+          <MetricCard
+            title="Produzido (SGBR)"
+            value={`${produzidoRegCount} reg.`}
+            loading={produzidoQ.isLoading}
+            subtitle={`${fatRange.dtDe} → ${fatRange.dtAte}`}
+            description={
+              produzidoQ.data?.meta.truncated
+                ? 'Retorno pode estar parcial por limite de paginação no proxy.'
+                : undefined
+            }
+          />
+        )
+
+        const widgetMap: Record<string, ReactNode> = {
+          producao: <MetricCard title="Produção m³/mês" value={`${producaoM3.toFixed(2)} m³`} />,
+          custo: <MetricCard title="Custo Médio/m³" value={formatBRL(custoMedioM3)} />,
+          faturamento: <MetricCard title="Faturamento (NF)" value={formatBRL(faturamentoTotal)} />,
+          pedidosAberto: <MetricCard title="Pedidos em Aberto" value={pedidosEmAberto} />,
+          opsAndamento: <MetricCard title="OPs em Andamento" value={opsEmAndamento} />,
+          margem: <MetricCard title="Margem Média Real" value={`${margemMedia.toFixed(1)}%`} />,
+          produzidoSgbr: produzidoWidget,
+        }
+        const widgetEnabled: Record<string, boolean> = {
+          producao: hasLotesData,
+          custo: hasLotesData,
+          faturamento: hasFaturamentoData || nfSource != null,
+          pedidosAberto: hasPedidosData,
+          opsAndamento: hasOrdensData,
+          margem: hasCustoData,
+          produzidoSgbr: produzidoEnabled,
+        }
+        const visibleWidgetLayout = widgetLayout.filter((id) => widgetEnabled[id] && widgetMap[id])
+        return (
+          <SortableWrap>
+            <Row gutter={[16, 16]}>
+              {visibleWidgetLayout.map((id) => (
+                <Col key={id} xs={24} sm={12} lg={8} xl={4}>
+                  <WidgetWrapper id={id}>{widgetMap[id]}</WidgetWrapper>
+                </Col>
+              ))}
+            </Row>
+          </SortableWrap>
+        )
+      })()}
+
+      {/* ── Row 3: Produção por Densidade + Top 5 Margem ── */}
+      {(hasLotesData || hasCustoData) && (
+        <Row gutter={[16, 16]}>
+          {hasLotesData && (
+            <Col xs={24} lg={12}>
+              <Card className="app-card" variant="borderless" title="Produção por Densidade">
+                <Table<DensidadeRow>
+                  dataSource={densidadeRows}
+                  columns={densidadeCols}
+                  rowKey="densidade"
+                  pagination={false}
+                  size="small"
+                  locale={{ emptyText: emptyTable }}
+                />
+              </Card>
+            </Col>
+          )}
+          {hasCustoData && (
+            <Col xs={24} lg={12}>
+              <Card className="app-card" variant="borderless" title="Top 5 Produtos por Margem (piores)">
+                <Table<CustoRealProduto>
+                  dataSource={top5Margem}
+                  columns={margemCols}
+                  rowKey="fichaTecnicaId"
+                  pagination={false}
+                  size="small"
+                  locale={{ emptyText: emptyTable }}
+                />
+              </Card>
+            </Col>
+          )}
+        </Row>
+      )}
+
+      {/* ── Row 4: Vendas por Cliente + Estoque Resumido ── */}
+      {(hasPedidosData || hasMovimentosData) && (
+        <Row gutter={[16, 16]}>
+          {hasPedidosData && (
+            <Col xs={24} lg={12}>
+              <Card className="app-card" variant="borderless" title="Vendas por Cliente">
+                <Table<ClienteRow>
+                  dataSource={clienteRows}
+                  columns={clienteCols}
+                  rowKey="cliente"
+                  pagination={false}
+                  size="small"
+                  locale={{ emptyText: emptyTable }}
+                />
+              </Card>
+            </Col>
+          )}
+          {hasMovimentosData && (
+            <Col xs={24} lg={12}>
+              <Card className="app-card" variant="borderless" title="Estoque Resumido">
+                <Table<EstoqueRow>
+                  dataSource={estoqueRows}
+                  columns={estoqueCols}
+                  rowKey="key"
+                  pagination={false}
+                  size="small"
+                  locale={{ emptyText: emptyTable }}
+                />
+              </Card>
+            </Col>
+          )}
+        </Row>
+      )}
+
+      {/* ── Row 5: Conciliação ── */}
+      {hasPedidosData && hasFaturamentoData && (
         <Card
           className="app-card"
           variant="borderless"
-          style={{ background: 'rgba(255, 77, 79, 0.06)', borderLeft: '4px solid #f5222d' }}
-          title={
-            <Space>
-              <AlertOutlined style={{ color: '#f5222d' }} />
-              <span>Alertas Ativos</span>
-              <Badge count={alertas.filter((a) => !a.lido).length} />
-            </Space>
-          }
+          title="Conciliação Pedido × Produzido × Faturado"
         >
-          <Space direction="vertical" size={8} style={{ width: '100%' }}>
-            {alertasNaoLidos.map((a) => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <Tag color={severityColor(a.severidade)} style={{ minWidth: 52, textAlign: 'center' }}>
-                  {a.severidade}
-                </Tag>
-                <div>
-                  <Typography.Text strong>{a.titulo}</Typography.Text>
-                  <br />
-                  <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                    {a.descricao}
-                  </Typography.Text>
-                </div>
-              </div>
-            ))}
-            <Typography.Link style={{ fontSize: 13 }}>Ver todos os alertas →</Typography.Link>
-          </Space>
+          <Table<ConciliacaoRow>
+            dataSource={conciliacaoRows}
+            columns={conciliacaoCols}
+            rowKey="key"
+            pagination={false}
+            size="small"
+            scroll={{ x: 1000 }}
+            locale={{ emptyText: emptyTable }}
+          />
         </Card>
       )}
-
-      {/* ── Row 2: KPIs Principais ── */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard title="Produção m³/mês" value={`${producaoM3.toFixed(2)} m³`} />
-        </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard title="Custo Médio/m³" value={formatBRL(custoMedioM3)} />
-        </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard title="Faturamento" value={formatBRL(faturamentoTotal)} />
-        </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard title="Pedidos em Aberto" value={pedidosEmAberto} />
-        </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard title="OPs em Andamento" value={opsEmAndamento} />
-        </Col>
-        <Col xs={24} sm={12} lg={8} xl={4}>
-          <MetricCard
-            title="Margem Média Real"
-            value={`${margemMedia.toFixed(1)}%`}
-          />
-        </Col>
-      </Row>
-
-      {/* ── Row 3: Produção por Densidade + Top 5 Margem ── */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}>
-          <Card className="app-card" variant="borderless" title="Produção por Densidade">
-            <Table<DensidadeRow>
-              dataSource={densidadeRows}
-              columns={densidadeCols}
-              rowKey="densidade"
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card className="app-card" variant="borderless" title="Top 5 Produtos por Margem (piores)">
-            <Table<CustoRealProduto>
-              dataSource={top5Margem}
-              columns={margemCols}
-              rowKey="fichaTecnicaId"
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* ── Row 4: Vendas por Cliente + Estoque Resumido ── */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}>
-          <Card className="app-card" variant="borderless" title="Vendas por Cliente">
-            <Table<ClienteRow>
-              dataSource={clienteRows}
-              columns={clienteCols}
-              rowKey="cliente"
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card className="app-card" variant="borderless" title="Estoque Resumido">
-            <Table<EstoqueRow>
-              dataSource={estoqueRows}
-              columns={estoqueCols}
-              rowKey="key"
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* ── Row 5: Conciliação ── */}
-      <Card
-        className="app-card"
-        variant="borderless"
-        title="Conciliação Pedido × Produzido × Faturado"
-      >
-        <Table<ConciliacaoRow>
-          dataSource={conciliacaoRows}
-          columns={conciliacaoCols}
-          rowKey="key"
-          pagination={false}
-          size="small"
-          scroll={{ x: 1000 }}
-        />
-      </Card>
     </Space>
   )
 }

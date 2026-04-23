@@ -1,4 +1,4 @@
-import { Button, Card, Col, Dropdown, Input, Row, Select, Space, Table, Tabs, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Col, Dropdown, Input, Row, Select, Space, Table, Tabs, Tag, Typography } from 'antd'
 import { DownloadOutlined, FileExcelOutlined, FilePdfOutlined, DollarOutlined, ShoppingCartOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -184,7 +184,7 @@ function VendasView({ rows }: { rows: ConciliacaoRow[] }) {
    ════════════════════════════════════════════ */
 export function ConciliacaoTab() {
   const [subTab, setSubTab] = useState('pagamentos')
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.conciliacao(),
     queryFn: getConciliacao,
   })
@@ -200,6 +200,18 @@ export function ConciliacaoTab() {
   }, [rows])
 
   if (isLoading) return <Card className="app-card" variant="borderless"><Skeleton active paragraph={{ rows: 10 }} /></Card>
+
+  if (isError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="Não foi possível carregar a conciliação"
+        description={error instanceof Error ? error.message : 'Tente novamente em instantes.'}
+        action={<Button size="small" onClick={() => refetch()}>Tentar de novo</Button>}
+      />
+    )
+  }
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>

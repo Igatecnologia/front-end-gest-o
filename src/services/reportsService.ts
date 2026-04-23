@@ -26,7 +26,7 @@ async function getReportsFromSgbrBi(
 ): Promise<{ items: ReportItem[]; total: number; page: number; pageSize: number }> {
   const end = options.endDate ? dayjs(options.endDate) : nowBr()
   const start = options.startDate ? dayjs(options.startDate) : end.subtract(90, 'day')
-  const rows = await getVendasAnalitico({
+  const { rows } = await getVendasAnalitico({
     dtDe: start.format('YYYY-MM-DD'),
     dtAte: end.format('YYYY-MM-DD'),
   })

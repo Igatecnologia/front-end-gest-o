@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { Alert, Button, Card, Space, Typography } from 'antd'
 
-export function getSupportWhatsAppUrl(): string | undefined {
+function getSupportWhatsAppUrl(): string | undefined {
   const u = import.meta.env.VITE_SUPPORT_WHATSAPP_URL?.toString().trim()
   return u || undefined
 }

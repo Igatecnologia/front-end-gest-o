@@ -26,7 +26,7 @@ export async function getDashboardData(options: GetDashboardOptions = {}): Promi
     const range = startDate && endDate
       ? { dtDe: startDate, dtAte: endDate }
       : dashboardRangeFromPeriod(period)
-    const rows = await getVendasAnalitico(range)
+    const { rows } = await getVendasAnalitico(range)
     return buildDashboardFromVendasRows(rows)
   }
   return getValidated(http, '/dashboard', dashboardResponseSchema, {

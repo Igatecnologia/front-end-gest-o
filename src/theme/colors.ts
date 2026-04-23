@@ -25,6 +25,25 @@ export const colors = {
 
 export const CHART_COLORS = colors.series
 
+/** Cores semânticas para métricas — match com CSS vars --metric-* */
+export const metricColors = {
+  revenue: 'var(--metric-revenue)',
+  cost: 'var(--metric-cost)',
+  margin: 'var(--metric-margin)',
+  marginWarn: 'var(--metric-margin-warn)',
+  marginDanger: 'var(--metric-margin-danger)',
+  ticket: 'var(--metric-ticket)',
+  clients: 'var(--metric-clients)',
+  quantity: 'var(--metric-quantity)',
+  gold: 'var(--metric-gold)',
+} as const
+
+export function marginColor(pct: number): string {
+  if (pct >= 30) return metricColors.margin
+  if (pct >= 15) return metricColors.marginWarn
+  return metricColors.marginDanger
+}
+
 export function deltaColor(value: number): string {
   if (value > 0) return colors.status.positive
   if (value < 0) return colors.status.negative

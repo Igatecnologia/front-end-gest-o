@@ -13,20 +13,23 @@ import {
   Button,
   Card,
   Col,
-  DatePicker,
   Empty,
   Row,
   Segmented,
   Select,
-  Skeleton,
   Space,
   Tag,
   Typography,
 } from 'antd'
 import dayjs from 'dayjs'
+import { RangePickerBR } from '../components/DatePickerPtBR'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useSortableWidgets } from '../hooks/useSortableWidgets'
+import { MetricCard } from '../components/MetricCard'
+import { EmptyState } from '../components/EmptyState'
+import { metricColors, marginColor } from '../theme/colors'
 import {
   Area,
   AreaChart,
@@ -41,17 +44,22 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { ChartTooltip, gridProps, xAxisProps, yAxisProps, CHART_COLORS } from '../components/charts/ChartDefaults'
+import { ChartTooltip, gridProps, xAxisProps, yAxisProps, CHART_COLORS, useChartAnimationProps } from '../components/charts/ChartDefaults'
 import { ChartShell } from '../components/ChartShell'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { DevErrorDetail } from '../components/DevErrorDetail'
 import { ANALITICO_STALE_MS } from '../api/apiEnv'
-import { getDataSourceByEndpointHint, getDataSourceLabelByEndpointHint, hasAnySources } from '../services/dataSourceService'
+import { hasAnySources } from '../services/dataSourceService'
+import {
+  getVendasAnaliticoDataSourceLabel,
+  getVendasAnaliticoQuerySourceKey,
+} from '../services/vendasAnaliticoSourceSelection'
 import { getDashboardData } from '../services/dashboardService'
 import { queryKeys } from '../query/queryKeys'
 import { getErrorMessage } from '../api/httpError'
 import { useRealtimeHeartbeat } from '../hooks/useRealtimeHeartbeat'
 import { formatBRL, formatCompact } from '../utils/formatters'
+import { DashboardSkeleton } from '../components/skeletons/DashboardSkeleton'
 
 function formatBRLAxisShort(n: number) {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -94,17 +102,23 @@ export function DashboardPage() {
   const startDate = searchParams.get('start') ?? ''
   const endDate = searchParams.get('end') ?? ''
   const pollMs = Number(searchParams.get('pollMs') ?? 0)
-  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
-  const sourceLabel = getDataSourceLabelByEndpointHint('/sgbrbi/vendas/analitico')
+  const sourceKey = getVendasAnaliticoQuerySourceKey()
+  const sourceLabel = getVendasAnaliticoDataSourceLabel()
+  const chartAnimation = useChartAnimationProps()
   const realtimeEnabled = pollMs > 0
   const { lastPulseAt, transport } = useRealtimeHeartbeat(realtimeEnabled, pollMs || 5_000)
 
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.dashboard({ period, pollMs: String(pollMs), start: startDate, end: endDate, sourceId }),
+    queryKey: queryKeys.dashboard({ period, pollMs: String(pollMs), start: startDate, end: endDate, sourceId: sourceKey }),
     queryFn: () => getDashboardData({ period, startDate: startDate || undefined, endDate: endDate || undefined }),
     refetchInterval: realtimeEnabled ? pollMs : false,
     staleTime: hasAnySources() ? ANALITICO_STALE_MS : 15_000,
   })
+
+  const { widgetLayout, SortableWrap, WidgetWrapper } = useSortableWidgets(
+    'dashboard',
+    ['faturamento', 'ticket', 'clientes', 'margem'],
+  )
 
   // ── Dados derivados ──
   const currentMonthPt = useMemo(() => PT_MONTHS[dayjs().month()] ?? '', [])
@@ -119,7 +133,8 @@ export function DashboardPage() {
     if (!data) return null
 
     const latest = data.latest
-    const faturamento = latest.reduce((s, r) => s + r.total, 0)
+    const faturamento =
+      data.kpis.find((k) => k.key === 'faturamento')?.value ?? latest.reduce((s, r) => s + r.total, 0)
     const custoTotal = latest.reduce((s, r) => s + r.custounit * r.qtde, 0)
     const margemMedia = faturamento > 0 ? ((faturamento - custoTotal) / faturamento) * 100 : 0
     const totalPedidos = latest.length
@@ -165,9 +180,7 @@ export function DashboardPage() {
     const bestDay = byDayOfWeek.reduce((best, cur) => cur.revenue > best.revenue ? cur : best, byDayOfWeek[0])
 
     // Média diária de vendas
-    const avgDailyRevenue = data.sales.length > 0
-      ? latest.reduce((s, r) => s + r.total, 0) / data.sales.length
-      : 0
+    const avgDailyRevenue = data.sales.length > 0 ? faturamento / data.sales.length : 0
 
     return {
       faturamento,
@@ -210,20 +223,8 @@ export function DashboardPage() {
     return (
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         {header}
-        <Row gutter={[12, 12]}>
-          {[1, 2, 3, 4].map(k => (
-            <Col key={k} xs={12} sm={6}>
-              <div className="metric-card">
-                <div className="metric-card__accent" style={{ background: 'var(--qc-border)' }} />
-                <div className="metric-card__content">
-                  <Skeleton active paragraph={{ rows: 1 }} title={{ width: '60%' }} />
-                </div>
-              </div>
-            </Col>
-          ))}
-        </Row>
-        <Card className="app-card" variant="borderless">
-          <Skeleton active paragraph={{ rows: 8 }} />
+        <Card className="app-card no-hover" variant="borderless">
+          <DashboardSkeleton />
         </Card>
       </Space>
     )
@@ -257,12 +258,56 @@ export function DashboardPage() {
     return (
       <Card className="app-card" variant="borderless">
         <div style={{ marginBottom: 16 }}>{header}</div>
-        <Empty description="Sem dados para exibir no momento." />
+        <EmptyState
+          title="Sem dados no período selecionado"
+          description="Tente ampliar o intervalo de datas ou verifique se as fontes de dados estão conectadas."
+          actionLabel="Verificar fontes"
+          actionPath="/fontes-de-dados"
+        />
       </Card>
     )
   }
 
   const filteredSales = data.sales
+
+  const widgetMap = {
+    faturamento: (
+      <MetricCard
+        hero
+        title="Faturamento"
+        value={formatCompact(derived.faturamento)}
+        subtitle={`${derived.totalPedidos} pedidos no período`}
+        accentColor={metricColors.revenue}
+      />
+    ),
+    ticket: (
+      <MetricCard
+        hero
+        title="Ticket Médio"
+        value={formatBRL(derived.ticketMedio)}
+        subtitle="Média por pedido"
+        accentColor={metricColors.ticket}
+      />
+    ),
+    clientes: (
+      <MetricCard
+        hero
+        title="Clientes"
+        value={String(derived.clientesUnicos)}
+        subtitle="Clientes únicos atendidos"
+        accentColor={metricColors.clients}
+      />
+    ),
+    margem: (
+      <MetricCard
+        hero
+        title="Margem Bruta"
+        value={`${derived.margemMedia.toFixed(1)}%`}
+        subtitle={`${derived.produtosUnicos} produtos vendidos`}
+        accentColor={marginColor(derived.margemMedia)}
+      />
+    ),
+  } as const
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -309,7 +354,7 @@ export function DashboardPage() {
           </div>
           <div className="filter-item">
             <span>Datas</span>
-            <DatePicker.RangePicker
+            <RangePickerBR
               format="DD/MM/YYYY"
               value={startDate && endDate ? [dayjs(startDate), dayjs(endDate)] : undefined}
               onChange={(vals) => {
@@ -354,73 +399,18 @@ export function DashboardPage() {
         </div>
       </Card>
 
-      {/* ── KPIs Hero ── */}
-      <Row gutter={[12, 12]}>
-        <Col xs={12} sm={6}>
-          <div className="metric-card metric-card--hero">
-            <div className="metric-card__accent" style={{ background: '#10B981' }} />
-            <div className="metric-card__content">
-              <span className="metric-card__title">
-                <DollarOutlined style={{ marginRight: 6 }} />Faturamento
-              </span>
-              <span className="metric-card__value metric-card__value--hero">
-                {formatCompact(derived.faturamento)}
-              </span>
-              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                {derived.totalPedidos} pedidos no período
-              </Typography.Text>
-            </div>
-          </div>
-        </Col>
-        <Col xs={12} sm={6}>
-          <div className="metric-card metric-card--hero">
-            <div className="metric-card__accent" style={{ background: '#3B82F6' }} />
-            <div className="metric-card__content">
-              <span className="metric-card__title">
-                <ShoppingCartOutlined style={{ marginRight: 6 }} />Ticket Médio
-              </span>
-              <span className="metric-card__value metric-card__value--hero">
-                {formatBRL(derived.ticketMedio)}
-              </span>
-              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                Média por pedido
-              </Typography.Text>
-            </div>
-          </div>
-        </Col>
-        <Col xs={12} sm={6}>
-          <div className="metric-card metric-card--hero">
-            <div className="metric-card__accent" style={{ background: '#8B5CF6' }} />
-            <div className="metric-card__content">
-              <span className="metric-card__title">
-                <TeamOutlined style={{ marginRight: 6 }} />Clientes
-              </span>
-              <span className="metric-card__value metric-card__value--hero">
-                {derived.clientesUnicos}
-              </span>
-              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                Clientes únicos atendidos
-              </Typography.Text>
-            </div>
-          </div>
-        </Col>
-        <Col xs={12} sm={6}>
-          <div className="metric-card metric-card--hero">
-            <div className="metric-card__accent" style={{ background: derived.margemMedia >= 30 ? '#10B981' : derived.margemMedia >= 15 ? '#F59E0B' : '#F43F5E' }} />
-            <div className="metric-card__content">
-              <span className="metric-card__title">
-                <RiseOutlined style={{ marginRight: 6 }} />Margem Bruta
-              </span>
-              <span className="metric-card__value metric-card__value--hero">
-                {derived.margemMedia.toFixed(1)}%
-              </span>
-              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                {derived.produtosUnicos} produtos vendidos
-              </Typography.Text>
-            </div>
-          </div>
-        </Col>
-      </Row>
+      {/* ── KPIs Hero (arrastável — use o handle no canto superior esquerdo) ── */}
+      <SortableWrap>
+        <Row gutter={[12, 12]}>
+          {widgetLayout.map((widgetId) => (
+            <Col key={widgetId} xs={12} sm={6}>
+              <WidgetWrapper id={widgetId}>
+                {widgetMap[widgetId as keyof typeof widgetMap]}
+              </WidgetWrapper>
+            </Col>
+          ))}
+        </Row>
+      </SortableWrap>
 
       {/* ── Gráficos principais ── */}
       <Row gutter={[16, 16]}>
@@ -447,6 +437,7 @@ export function DashboardPage() {
                   fill="url(#gradVendas)"
                   dot={false}
                   activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2 }}
+                  {...chartAnimation}
                 />
               </AreaChart>
             </ChartShell>
@@ -541,7 +532,7 @@ export function DashboardPage() {
                 <Tooltip content={<DarkTooltip />} />
                 <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
                 <Bar yAxisId="left" dataKey="qty" name="Pedidos" fill={CHART_COLORS[1]} fillOpacity={0.7} radius={[4, 4, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="revenue" name="Faturamento" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 4, fill: CHART_COLORS[0] }} />
+                <Line yAxisId="right" type="monotone" dataKey="revenue" name="Faturamento" stroke={CHART_COLORS[0]} strokeWidth={2.5} dot={{ r: 4, fill: CHART_COLORS[0] }} {...chartAnimation} />
               </ComposedChart>
             </ChartShell>
             {derived.bestDay && derived.bestDay.revenue > 0 && (

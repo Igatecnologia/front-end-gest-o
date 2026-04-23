@@ -1,3 +1,4 @@
+import { RangePickerBR } from '../../components/DatePickerPtBR'
 import {
   Alert,
   Button,
@@ -23,12 +24,14 @@ import { ANALITICO_STALE_MS } from '../../api/apiEnv'
 import type { VendaAnaliticaRow } from '../../api/schemas'
 import { MetricCard } from '../../components/MetricCard'
 import { DevErrorDetail } from '../../components/DevErrorDetail'
-import { getDataSourceByEndpointHint, hasAnySources } from '../../services/dataSourceService'
+import { hasAnySources } from '../../services/dataSourceService'
+import { getVendasAnaliticoQuerySourceKey } from '../../services/vendasAnaliticoSourceSelection'
 import { getErrorMessage } from '../../api/httpError'
 import { queryKeys } from '../../query/queryKeys'
 import { getVendasAnalitico } from '../../services/vendasAnaliticoService'
 import { formatBRL, formatCompact } from '../../utils/formatters'
 import { nowBr } from '../../utils/dayjsBr'
+import { lineReceitaRow } from '../../utils/vendasAnaliticoAggregates'
 
 const CurvaAbcChart = lazy(() =>
   import('../charts/CurvaAbcChart').then((m) => ({ default: m.CurvaAbcChart })),
@@ -76,11 +79,12 @@ function buildAbcData(rows: VendaAnaliticaRow[], agrupaPor: AgrupaPor): AbcRow[]
     const unidade = agrupaPor === 'produto' ? (r.und || '') : ''
 
     const existing = map.get(codigo)
+    const linha = lineReceitaRow(r)
     if (existing) {
-      existing.faturamento += r.total
+      existing.faturamento += linha
       existing.quantidade += r.qtdevendida
     } else {
-      map.set(codigo, { codigo, nome, unidade, faturamento: r.total, quantidade: r.qtdevendida })
+      map.set(codigo, { codigo, nome, unidade, faturamento: linha, quantidade: r.qtdevendida })
     }
   }
 
@@ -116,11 +120,11 @@ export function CurvaAbcTab() {
   const [agrupaPor, setAgrupaPor] = useState<AgrupaPor>('produto')
 
   const biConfigured = hasAnySources()
-  const sourceId = getDataSourceByEndpointHint('/sgbrbi/vendas/analitico')?.id
+  const sourceKey = getVendasAnaliticoQuerySourceKey()
 
   const query = useQuery({
-    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end, sourceId }),
-    queryFn: () => getVendasAnalitico({ dtDe: start, dtAte: end }),
+    queryKey: queryKeys.vendasAnalitico({ dtDe: start, dtAte: end, sourceId: sourceKey }),
+    queryFn: async () => (await getVendasAnalitico({ dtDe: start, dtAte: end })).rows,
     enabled: biConfigured,
     staleTime: ANALITICO_STALE_MS,
   })
@@ -301,7 +305,7 @@ export function CurvaAbcTab() {
           </div>
           <div className="filter-item">
             <span>Período</span>
-            <DatePicker.RangePicker
+            <RangePickerBR
               format="DD/MM/YYYY"
               value={[dayjs(start), dayjs(end)]}
               onChange={(vals) => {

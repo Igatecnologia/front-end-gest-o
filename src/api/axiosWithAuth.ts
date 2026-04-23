@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios'
-import { getStoredSession, setStoredSession } from '../auth/authStorage'
+import { setStoredSession } from '../auth/authStorage'
 import { emitAuthSignOut } from '../auth/authEvents'
 import { getHttpStatusMessage } from './httpError'
 import { getCurrentTenantId } from '../tenant/tenantStorage'
@@ -15,7 +15,7 @@ function readCsrfToken(): string | null {
 
 const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete'])
 
-export function createAuthorizedAxios(baseURL: string, timeoutMs = 20_000): AxiosInstance {
+export function createAuthorizedAxios(baseURL: string, timeoutMs = 180_000): AxiosInstance {
   const instance = axios.create({
     baseURL,
     timeout: timeoutMs,
@@ -23,13 +23,10 @@ export function createAuthorizedAxios(baseURL: string, timeoutMs = 20_000): Axio
   })
 
   instance.interceptors.request.use((config) => {
-    const session = getStoredSession()
     config.headers = config.headers ?? {}
 
-    // Auth token
-    if (session?.token) {
-      config.headers.Authorization = `Bearer ${session.token}`
-    }
+    // Correlação com logs do backend / gateway (observabilidade)
+    config.headers['X-Request-Id'] = crypto.randomUUID()
 
     // Tenant isolation — backend MUST validate
     const tenantId = getCurrentTenantId()

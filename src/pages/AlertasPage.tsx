@@ -1,6 +1,8 @@
 import {
+  Alert,
   Alert as AntAlert,
   Badge,
+  Button,
   Card,
   Col,
   Divider,
@@ -28,6 +30,7 @@ import {
   getFichasTecnicas,
 } from '../services/erpService'
 import type { AlertaOperacional } from '../types/models'
+import { getErrorMessage } from '../api/httpError'
 
 /* ── Helpers ── */
 
@@ -74,20 +77,28 @@ export function AlertasPage() {
   const [precoOverride, setPrecoOverride] = useState<number | null>(null)
 
   /* ── Queries ── */
-  const { data: alertas, isLoading: loadingAlertas } = useQuery({
+  const alertasQ = useQuery({
     queryKey: queryKeys.alertasOperacionais(),
     queryFn: getAlertasOperacionais,
   })
+  const { data: alertas, isLoading: loadingAlertas } = alertasQ
 
-  const { data: fichas, isLoading: loadingFichas } = useQuery({
+  const fichasQ = useQuery({
     queryKey: queryKeys.fichasTecnicas(),
     queryFn: getFichasTecnicas,
   })
+  const { data: fichas, isLoading: loadingFichas } = fichasQ
 
-  const { data: custos, isLoading: loadingCustos } = useQuery({
+  const custosQ = useQuery({
     queryKey: queryKeys.custoRealProdutos(),
     queryFn: getCustoRealProdutos,
   })
+  const { data: custos, isLoading: loadingCustos } = custosQ
+
+  const hasAlertasError = alertasQ.isError
+  const alertasError = alertasQ.error
+  const hasSimuladorError = fichasQ.isError || custosQ.isError
+  const simuladorError = fichasQ.error ?? custosQ.error
 
   const rows = useMemo(() => alertas ?? [], [alertas])
   const fichasList = fichas ?? []
@@ -201,7 +212,7 @@ export function AlertasPage() {
   const margem = receitaBruta > 0 ? ((lucroEstimado / receitaBruta) * 100) : 0
   const volumeTotal = selectedFicha ? quantidade * selectedFicha.volumeM3 : 0
 
-  const isLoading = loadingAlertas || loadingFichas || loadingCustos
+  const isLoading = loadingAlertas
 
   /* ── Render ── */
   if (isLoading) {
@@ -209,6 +220,27 @@ export function AlertasPage() {
       <div style={{ padding: 24 }}>
         <Skeleton active paragraph={{ rows: 12 }} />
       </div>
+    )
+  }
+
+  if (hasAlertasError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="Não foi possível carregar os alertas"
+        description={getErrorMessage(alertasError, 'Tente novamente em instantes.')}
+        action={
+          <Button
+            size="small"
+            onClick={() => {
+              void alertasQ.refetch()
+            }}
+          >
+            Tentar novamente
+          </Button>
+        }
+      />
     )
   }
 
@@ -296,6 +328,27 @@ export function AlertasPage() {
           Simulador: Se vender X &rarr; Lucro Y
         </Typography.Title>
 
+        {hasSimuladorError ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="Simulador temporariamente indisponível"
+            description={getErrorMessage(simuladorError, 'Os alertas continuam disponíveis normalmente.')}
+            action={
+              <Button
+                size="small"
+                onClick={() => {
+                  void fichasQ.refetch()
+                  void custosQ.refetch()
+                }}
+              >
+                Tentar novamente
+              </Button>
+            }
+            style={{ marginBottom: 16 }}
+          />
+        ) : null}
+
         <Row gutter={[24, 16]} align="middle">
           <Col xs={24} md={8}>
             <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
@@ -311,6 +364,8 @@ export function AlertasPage() {
               style={{ width: '100%' }}
               showSearch
               optionFilterProp="label"
+              loading={loadingFichas}
+              disabled={hasSimuladorError || loadingFichas || loadingCustos}
               options={fichasList.map((f) => ({ value: f.id, label: f.produto }))}
             />
           </Col>
@@ -324,6 +379,7 @@ export function AlertasPage() {
               value={quantidade}
               onChange={(v) => setQuantidade(v ?? 10)}
               style={{ width: '100%' }}
+              disabled={hasSimuladorError || loadingFichas || loadingCustos}
             />
           </Col>
         </Row>

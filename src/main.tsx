@@ -1,12 +1,13 @@
+/** DEVE ser a primeira importação: configura dayjs globalmente antes de qualquer
+ *  componente avaliar um import que use dayjs (ex.: DatePicker do AntD). */
+import './i18n/dayjsSetup'
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import dayjs from 'dayjs'
-import 'dayjs/locale/pt-br'
 import 'antd/dist/reset.css'
 import './index.css'
 
-dayjs.locale('pt-br')
 import App from './App'
 import { TenantProvider } from './tenant/TenantProvider'
 import { ThemeProvider } from './theme/ThemeProvider'
