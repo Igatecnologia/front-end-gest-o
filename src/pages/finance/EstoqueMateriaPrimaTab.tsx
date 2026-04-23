@@ -2,7 +2,7 @@ import { Button, Card, Col, Dropdown, Empty, Input, Row, Select, Space, Table, T
 import { DownloadOutlined, EyeOutlined, FileExcelOutlined, FilePdfOutlined, WarningOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import { Suspense, lazy, useMemo, useState } from 'react'
+import { Suspense, lazy, useMemo, useState, type JSX } from 'react'
 import { Skeleton } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { MetricCard } from '../../components/MetricCard'
@@ -126,7 +126,7 @@ export function EstoqueMateriaPrimaTab() {
       key: 'qtdeAtual',
       width: 110,
       align: 'right',
-      render: (v: number, r) => {
+      render: (v: number, _r) => {
         const node = qtdeTag(v)
         if (v <= 0) {
           return (

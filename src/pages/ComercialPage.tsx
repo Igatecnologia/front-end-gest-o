@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   Col,
-  DatePicker,
   Empty,
   Input,
   Row,
@@ -27,7 +26,7 @@ import { useSearchParams } from 'react-router-dom'
 import { PageHeaderCard } from '../components/PageHeaderCard'
 import { MetricCard } from '../components/MetricCard'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { getVendasSgbr, getFaturamentos, getDefaultFaturamentoDateRange } from '../services/erpService'
+import { getVendasSgbr, getFaturamentos } from '../services/erpService'
 import { hasAnySources, getNotasFiscaisDataSource } from '../services/dataSourceService'
 import { queryKeys } from '../query/queryKeys'
 import { getErrorMessage } from '../api/httpError'
@@ -241,7 +240,7 @@ function VendasSgbrTab() {
    ══════════════════════════════════════════════════ */
 
 function NotasFiscaisTab() {
-  const defaultRange = useMemo(() => getDefaultFaturamentoDateRange(), [])
+  // defaultRange removed — range state below covers the use-case
   const [range, setRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>(() => [
     dayjs().subtract(30, 'day'),
     dayjs(),

@@ -4,7 +4,6 @@ import {
   Button,
   Card,
   Col,
-  DatePicker,
   Input,
   Row,
   Select,
@@ -17,7 +16,6 @@ import {
 import {
   CreditCardOutlined,
   CrownFilled,
-  DollarOutlined,
   FundOutlined,
   RiseOutlined,
 } from '@ant-design/icons'
